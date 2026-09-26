@@ -346,14 +346,16 @@ pub fn run() {
             let state = app.state::<AppState>();
             state.log(&format!("démarrage, port {}", settings.port));
 
-            // Lancement au démarrage : activé au premier lancement, puis réécrit à chaque
-            // lancement s'il est actif, pour pointer sur l'exécutable courant (une mise à jour
-            // peut le déplacer). Jamais en build de développement, qui détournerait l'entrée.
+            // Lancement au démarrage : activé au premier lancement d'un build de production,
+            // puis réécrit à chaque lancement s'il est actif, pour pointer sur l'exécutable
+            // courant (une mise à jour peut le déplacer). Jamais en build de développement, qui
+            // détournerait l'entrée vers son propre exécutable.
             if !cfg!(debug_assertions) {
                 let launcher = app.autolaunch();
-                if settings.first_run || launcher.is_enabled().unwrap_or(false) {
+                if !settings.autostart_initialized || launcher.is_enabled().unwrap_or(false) {
                     let enabled = launcher.enable();
                     state.log(&format!("lancement au démarrage → {enabled:?}"));
+                    store::mark_autostart_initialized(&settings.dir);
                 }
             }
 

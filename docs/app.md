@@ -64,8 +64,10 @@ Menu : notification de test, ouvrir le playground (fenêtre normale, mêmes fich
 `npm run playground`), pause d'une heure, lancement au démarrage, quitter.
 
 **Lancement au démarrage** (`tauri-plugin-autostart`, clé `Run` du registre utilisateur) :
-activé au premier lancement d'un build de production, puis réécrit à chaque lancement s'il est
-actif, pour pointer sur l'exécutable courant. Un build de développement n'y touche jamais.
+activé au premier lancement d'un build de production (marqueur `autostart-initialized` dans le
+dossier de données), puis réécrit à chaque lancement s'il est actif, pour pointer sur
+l'exécutable courant. Un build de développement n'y touche jamais. Le désactiver dans le menu
+est respecté : le marqueur empêche de le réactiver au lancement suivant.
 
 Une seule instance à la fois (`tauri-plugin-single-instance`) : une seconde se ferme aussitôt.
 

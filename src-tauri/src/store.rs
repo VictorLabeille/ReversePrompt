@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 
 pub const DEFAULT_PORT: u16 = 47625;
 const LOG_MAX_BYTES: u64 = 256 * 1024;
+const AUTOSTART_MARKER: &str = "autostart-initialized";
 
 #[derive(Serialize, Deserialize)]
 struct ConfigFile {
@@ -20,16 +21,16 @@ pub struct Settings {
     pub dir: PathBuf,
     pub port: u16,
     pub token: String,
-    // Vrai au tout premier lancement (réglages absents) : l'app active alors son lancement au
-    // démarrage de Windows.
-    pub first_run: bool,
+    // Faux tant qu'un build de production n'a pas activé le lancement au démarrage une première
+    // fois (marqueur `autostart-initialized`). Indépendant de config.json, que les builds de
+    // développement créent aussi.
+    pub autostart_initialized: bool,
 }
 
 pub fn load(dir: &Path) -> Result<Settings, String> {
     fs::create_dir_all(dir).map_err(|e| format!("dossier {} : {e}", dir.display()))?;
 
     let config_path = dir.join("config.json");
-    let first_run = !config_path.exists();
     let port = match fs::read_to_string(&config_path) {
         Ok(s) => serde_json::from_str::<ConfigFile>(&s).map(|c| c.port).unwrap_or(DEFAULT_PORT),
         Err(_) => {
@@ -49,7 +50,12 @@ pub fn load(dir: &Path) -> Result<Settings, String> {
         }
     };
 
-    Ok(Settings { dir: dir.to_owned(), port, token, first_run })
+    let autostart_initialized = dir.join(AUTOSTART_MARKER).exists();
+    Ok(Settings { dir: dir.to_owned(), port, token, autostart_initialized })
+}
+
+pub fn mark_autostart_initialized(dir: &Path) {
+    let _ = fs::write(dir.join(AUTOSTART_MARKER), "");
 }
 
 fn is_token(s: &str) -> bool {
@@ -84,11 +90,12 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("rp-store-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         let a = load(&dir).unwrap();
-        assert!(a.first_run);
+        assert!(!a.autostart_initialized);
         assert_eq!(a.port, DEFAULT_PORT);
         assert!(is_token(&a.token));
+        mark_autostart_initialized(&dir);
         let b = load(&dir).unwrap();
-        assert!(!b.first_run);
+        assert!(b.autostart_initialized);
         assert_eq!(a.token, b.token);
         fs::write(dir.join("config.json"), r#"{"port":50000}"#).unwrap();
         fs::write(dir.join("token"), "abîmé").unwrap();
