@@ -1,0 +1,85 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  font-family: system-ui, sans-serif;
+}
+
+/* L'écran simulé : le haut de la page tient lieu de bord haut de l'écran. */
+#background {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  background-size: cover;
+  background-position: center;
+}
+#background video,
+#background img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+#stage {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+#stage.outlined {
+  outline: 1px dashed rgba(255, 64, 160, 0.8);
+}
+
+/* Repère de l'encoche : l'encoche est hors de l'écran, ce trait montre où elle se trouve. */
+#notch-guide {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  height: 2px;
+  transform: translateX(-50%);
+  background: rgba(255, 64, 160, 0.55);
+  pointer-events: none;
+}
+#notch-guide.hidden {
+  display: none;
+}
+
+#pane {
+  position: fixed;
+  top: 160px;
+  right: 12px;
+  width: 360px;
+  --tp-blade-value-width: 150px;
+  max-height: calc(100vh - 176px);
+  overflow-y: auto;
+}
+
+#help {
+  position: fixed;
+  left: 12px;
+  bottom: 12px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(30, 30, 34, 0.85);
+  color: #ddd;
+  font-size: 12px;
+}
+
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: 48px;
+  transform: translateX(-50%);
+  padding: 8px 14px;
+  border-radius: 6px;
+  background: rgba(30, 30, 34, 0.92);
+  color: #fff;
+  font-size: 13px;
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+#toast.visible {
+  opacity: 1;
+}

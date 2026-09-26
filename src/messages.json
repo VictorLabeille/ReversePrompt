@@ -1,0 +1,20 @@
+{
+  "done": [
+    "C'est prêt !",
+    "J'ai fini, à toi de jouer",
+    "Mission accomplie",
+    "Terminé, tu peux regarder",
+    "Voilà, c'est fait",
+    "Tout est bon de mon côté",
+    "Travail terminé"
+  ],
+  "needs": [
+    "J'ai besoin de toi",
+    "Une petite validation ?",
+    "Je t'attends…",
+    "Ton avis, s'il te plaît",
+    "Besoin d'un coup de main",
+    "Je bloque, tu viens ?",
+    "Une question pour toi"
+  ]
+}

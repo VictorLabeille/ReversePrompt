@@ -1,0 +1,16 @@
+/* Thème « noir » — seul thème de la v1.
+   Toute couleur, police ou ombre de l'île passe par ces variables. Un autre thème
+   (par exemple « faux verre ») redéfinit les mêmes variables sans toucher au code. */
+:root {
+  --island-fill: #000000;
+  --island-text: #ffffff;
+  --island-character: #ffffff;
+  --island-character-ink: #000000;
+  --island-font-family: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  --island-font-size: 15px;
+  --island-font-weight: 500;
+  --island-shadow-color: #000000;
+  --island-shadow-opacity: 0.22;
+  --island-shadow-blur: 14px;
+  --island-shadow-offset-y: 4px;
+}

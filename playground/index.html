@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ReversePrompt — playground</title>
+  </head>
+  <body>
+    <div id="background"></div>
+    <div id="stage"><div id="notch-guide"></div><div id="island"></div></div>
+    <div id="pane"></div>
+    <div id="help">
+      <b>D</b> terminé · <b>N</b> besoin de toi · <b>R</b> rejouer l'entrée · <b>E</b> sortie ·
+      <b>Espace</b> pause · <b>→</b> image suivante · clic gauche / droit sur la pilule ·
+      le trait rose en haut marque l'encoche
+    </div>
+    <div id="toast"></div>
+    <input id="file" type="file" accept="image/*,video/*" hidden />
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

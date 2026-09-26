@@ -1,0 +1,52 @@
+/* Structure de l'île, indépendante du thème. Aucune de ces règles n'est animée :
+   l'animation passe uniquement par transform, opacity et filter, posés en JS. */
+.island {
+  position: relative;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+.island canvas {
+  position: absolute;
+  inset: 0;
+}
+.island-content {
+  position: absolute;
+  left: 0;
+  top: 0;
+  will-change: transform;
+}
+.island-row {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  align-items: center;
+  will-change: transform, clip-path;
+}
+.island-icon {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  will-change: transform, opacity;
+}
+.island-icon svg {
+  display: block;
+  overflow: visible;
+}
+.island-text {
+  white-space: pre;
+  color: var(--island-text);
+  font-family: var(--island-font-family);
+  font-size: var(--island-font-size);
+  font-weight: var(--island-font-weight);
+  line-height: 1;
+}
+/* Curseur de frappe : sa largeur et son écart au texte viennent de la config (typing.*). */
+.island-caret {
+  flex: none;
+  height: calc(var(--island-font-size) * 1.15);
+  border-radius: 1px;
+  background: var(--island-text);
+}
