@@ -22,6 +22,10 @@ d'autres). Ce fichier oriente ; la documentation vit dans `README.md` et `docs/`
 | `src/theme/` | variables CSS d'un thème |
 | `src/main.ts`, `index.html` | page de l'overlay (future fenêtre Tauri) |
 | `playground/` | page de réglage (`npm run playground`) |
+| `src-tauri/` | app Windows (Rust) : fenêtre overlay, serveur local, focus, zone de notification |
+| `scripts/windows.mjs` | miroir WSL → NTFS et commandes Windows (`npm run win:*`) |
+| `docs/event-contract.md` | **le contrat** que l'app accepte ; seul point de contact avec les outils |
+| `docs/adapters/` | un fichier par outil : faits vérifiés + traduction vers le contrat |
 
 ## Règles
 - Aucune valeur d'animation en dur hors de `src/config/animation.ts`. Une nouvelle clé garde un
@@ -44,7 +48,12 @@ d'autres). Ce fichier oriente ; la documentation vit dans `README.md` et `docs/`
 - Prose et commentaires en français ; identifiants en anglais.
 
 ## Pièges d'outillage
-- Pas de `cargo` dans WSL : la partie Tauri (Rust) se compilera côté Windows.
+- Pas de `cargo` dans WSL : la partie Tauri (Rust) se compile côté Windows, **toujours via
+  `npm run win:*`** (miroir `%LOCALAPPDATA%\ReversePrompt-build`, jamais édité à la main).
+- `npm run win:dev` n'a pas de `beforeDevCommand` : lancer d'abord `npm run dev` dans WSL ;
+  Windows atteint le Vite de WSL sur `127.0.0.1:5173` (redirection localhost de WSL).
+- Commande passée à `cmd.exe` depuis WSL : **pas de guillemets** dedans, l'interop les échappe
+  en `\"` que `cmd.exe` ne comprend pas.
 - Le playground se sert depuis WSL mais se juge dans un navigateur Windows (police Segoe UI
   Variable, écran 120 Hz). Un navigateur headless (SwiftShader) sert à capturer des images, pas
   à mesurer la fluidité.

@@ -7,15 +7,22 @@
     "dev": "vite",
     "playground": "vite --open /playground/",
     "typecheck": "tsc --noEmit",
-    "build": "tsc --noEmit && vite build"
+    "build": "tsc --noEmit && vite build",
+    "win:sync": "node scripts/windows.mjs sync",
+    "win:dev": "node scripts/windows.mjs dev",
+    "win:build": "node scripts/windows.mjs build",
+    "win:install": "node scripts/windows.mjs install",
+    "win:test": "node scripts/windows.mjs test"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.11.5",
     "@tweakpane/core": "^2.0.5",
     "@types/node": "^26.6.3",
     "typescript": "^7.0.2",
     "vite": "^8.3.1"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2.11.1",
     "tweakpane": "^4.0.5"
   }
 }

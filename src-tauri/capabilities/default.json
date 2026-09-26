@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Écoute des événements de l'app par l'île et le playground.",
+  "windows": ["*"],
+  "permissions": ["core:default"]
+}

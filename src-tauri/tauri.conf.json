@@ -1,0 +1,24 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "ReversePrompt",
+  "mainBinaryName": "reverse-prompt",
+  "version": "0.1.0",
+  "identifier": "io.github.victorlabeille.reverseprompt",
+  "build": {
+    "devUrl": "http://127.0.0.1:5173",
+    "frontendDist": "../dist",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [{ "label": "probe", "title": "ReversePrompt", "width": 400, "height": 200 }],
+    "security": { "csp": null }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico"],
+    "windows": {
+      "nsis": { "installMode": "currentUser" }
+    }
+  }
+}

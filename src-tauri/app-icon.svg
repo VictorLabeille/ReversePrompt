@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Icône de l'app : une goutte d'encre blanche sur fond noir. Dessin original, neutre. -->
+  <rect width="1024" height="1024" rx="224" fill="#000"/>
+  <path d="M512 176 C 512 176 296 452 296 604 A 216 216 0 0 0 728 604 C 728 452 512 176 512 176 Z" fill="#fff"/>
+</svg>
