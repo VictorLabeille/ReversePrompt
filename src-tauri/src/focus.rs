@@ -1,6 +1,7 @@
 // Retrouver et ramener au premier plan la fenêtre d'un agent, et surveiller le premier plan.
 // Méthode et pièges : docs/windows-focus.md.
 
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::OnceLock;
 use std::thread;
 
@@ -16,7 +17,7 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{GetLastInputInfo, SendInput, I
 use windows::Win32::UI::WindowsAndMessaging::{
     BringWindowToTop, DispatchMessageW, EnumWindows, GetForegroundWindow, GetMessageW, GetWindow,
     GetWindowLongPtrW, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId, IsIconic, IsWindowVisible,
-    SetForegroundWindow, ShowWindow, TranslateMessage, EVENT_SYSTEM_FOREGROUND, GWL_EXSTYLE, GW_OWNER, MSG,
+    SetForegroundWindow, ShowWindow, TranslateMessage, EVENT_SYSTEM_DESKTOPSWITCH, EVENT_SYSTEM_FOREGROUND, GWL_EXSTYLE, GW_OWNER, MSG,
     SW_RESTORE, WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS, WS_EX_TOOLWINDOW,
 };
 use windows::core::BOOL;
@@ -148,6 +149,24 @@ pub fn ms_since_last_input() -> u32 {
     }
 }
 
+// Instant (GetTickCount) du dernier changement de bureau : verrouillage, déverrouillage, écran
+// d'élévation. 0 : aucun depuis le lancement.
+static LAST_DESKTOP_SWITCH: AtomicU32 = AtomicU32::new(0);
+
+// Millisecondes depuis le dernier changement de bureau. Au déverrouillage, le mot de passe
+// tapé compte comme une entrée et Windows rend le premier plan au terminal : sans ce délai,
+// l'île partait au moment précis où l'utilisateur revenait la voir.
+pub fn ms_since_desktop_switch() -> u32 {
+    match LAST_DESKTOP_SWITCH.load(Ordering::Relaxed) {
+        0 => u32::MAX,
+        t => unsafe { GetTickCount() }.wrapping_sub(t),
+    }
+}
+
+unsafe extern "system" fn on_desktop_switch(_: HWINEVENTHOOK, _: u32, _: HWND, _: i32, _: i32, _: u32, _: u32) {
+    LAST_DESKTOP_SWITCH.store(GetTickCount().max(1), Ordering::Relaxed);
+}
+
 type ForegroundCallback = Box<dyn Fn(HWND) + Send + Sync>;
 static ON_FOREGROUND: OnceLock<ForegroundCallback> = OnceLock::new();
 
@@ -172,6 +191,15 @@ pub fn watch_foreground(callback: impl Fn(HWND) + Send + Sync + 'static) {
             0,
             0,
             WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS,
+        );
+        let _desktop_hook = SetWinEventHook(
+            EVENT_SYSTEM_DESKTOPSWITCH,
+            EVENT_SYSTEM_DESKTOPSWITCH,
+            None,
+            Some(on_desktop_switch),
+            0,
+            0,
+            WINEVENT_OUTOFCONTEXT,
         );
         let mut msg = MSG::default();
         while GetMessageW(&mut msg, None, 0, 0).as_bool() {

@@ -10,14 +10,15 @@ dit ce que l'app a reçu et fait.
 1. **Claude Code dans WSL** — lancer une tâche, changer de fenêtre : à la fin, l'île tombe
    (moins de 300 ms ressentis). Demande d'autorisation laissée ~6 s sans taper : l'île
    « besoin de toi ». Répondre dans le terminal : elle part.
-2. **Clic gauche** : Windows Terminal revient au premier plan — y compris **réduit**, et
-   **derrière une vidéo plein écran**. **Clic droit** : l'île part, la fenêtre active ne change pas.
+2. **Clic gauche** : Windows Terminal revient au premier plan quand il est **réduit** et
+   **derrière une vidéo plein écran** (le cas simple est confirmé). **Clic droit** : l'île part, la fenêtre active ne change pas.
 3. **Vidéo YouTube plein écran** : l'île passe au-dessus, la vidéo reste en plein écran et
    réagit toujours au clavier (Espace, flèches).
 4. **Clics traversants** : île cachée, les onglets du navigateur sous l'encoche restent
    cliquables ; île visible, seul un clic **sur** la pilule est capté (léger grossissement au
    survol ; le curseur reste une flèche).
-5. **Alt+Tab vers le terminal** pendant que l'île est là : elle part d'elle-même.
+5. **Alt+Tab vers le terminal** pendant que l'île est là : elle part d'elle-même. **Verrouiller
+   puis déverrouiller** le PC : elle doit rester.
 6. **Claude Desktop, onglet Code** (session Windows **et** session WSL) : fin de tâche →
    icône étoile ; clic → Claude Desktop revient. C'est ici que se confirme la détection
    CLI / Desktop, qui repose sur des variables non documentées (`docs/adapters/claude.md`).
@@ -40,7 +41,8 @@ dit ce que l'app a reçu et fait.
   réglages idempotente, sauvegarde, désinstallation qui rend l'original, fichier illisible
   jamais écrasé ; hook app arrêtée : sortie 0 en moins de 100 ms — `npm run test:adapters`.
 - App réelle : latence hook → app 59 à 82 ms ; l'apparition de l'île ne prend pas le focus ;
-  fenêtre réduite restaurée et ramenée au premier plan (déclenchement sans vrai clic) ; rendu
+  fenêtre réduite restaurée et ramenée au premier plan ; survol qui tient et clic qui ramène
+  le terminal (confirmés par Victor) ; rendu
   de l'île capturé dans WebView2 à 175 % et sur l'écran réel ; processeur ~0,2 % d'un cœur au
   repos ; lancement au démarrage inscrit.
 - **Écart connu** : mémoire totale ~181 Mo (dont 87 Mo pour le processus GPU de WebView2),

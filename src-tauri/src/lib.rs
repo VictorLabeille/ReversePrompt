@@ -34,11 +34,22 @@ const CURSOR_POLL: Duration = Duration::from_millis(16);
 // clavier ou souris de moins de ce délai.
 #[cfg(windows)]
 const USER_SWITCH_MS: u32 = 1500;
+// Après un changement de bureau (déverrouillage), le retour du terminal au premier plan n'est
+// pas un choix de l'utilisateur pendant ce délai.
+#[cfg(windows)]
+const AFTER_UNLOCK_MS: u32 = 3000;
+// Programmes dont les changements de premier plan ne comptent pas : l'app et son WebView2.
+#[cfg(windows)]
+const OWN_PROCESSES: [&str; 2] = ["reverse-prompt.exe", "msedgewebview2.exe"];
 
 struct AppState {
     core: Mutex<Core>,
     dir: PathBuf,
     island_visible: AtomicBool,
+    // Souris sur la pilule (fenêtre captante) : les changements de premier plan ne comptent pas.
+    island_interactive: AtomicBool,
+    // Programme au premier plan au dernier changement vu (ou à l'apparition de l'île).
+    foreground: Mutex<Option<String>>,
     island_hwnd: AtomicIsize,
     cursor_thread: OnceLock<thread::Thread>,
 }
@@ -76,8 +87,13 @@ fn dispatch(app: &AppHandle, event: Event) {
     match action {
         Action::Show { kind, source, text } => {
             #[cfg(windows)]
-            if let Some(hwnd) = island_hwnd(&state) {
-                overlay::raise(hwnd);
+            {
+                // Point de départ pour reconnaître un vrai retour vers la fenêtre de l'agent.
+                let fg = unsafe { windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow() };
+                *state.foreground.lock().unwrap() = focus::process_name(fg);
+                if let Some(hwnd) = island_hwnd(&state) {
+                    overlay::raise(hwnd);
+                }
             }
             let _ = app.emit_to(ISLAND, "island://show", ShowPayload { kind, source, text });
         }
@@ -111,7 +127,15 @@ fn overlay_ready(window: WebviewWindow, width_px: f64, height_px: f64) -> Result
         state.island_hwnd.store(hwnd.0 as isize, Ordering::Relaxed);
         let hwnd = windows::Win32::Foundation::HWND(hwnd.0 as *mut _);
         overlay::apply_styles(hwnd);
-        overlay::show(hwnd);
+    }
+    // Affichage par Tauri, et non par ShowWindow directement : tao garde son propre état
+    // « visible » et le réapplique à chaque changement de réglage (clics traversants). Une
+    // fenêtre montrée dans son dos était donc masquée dès le premier survol de la pilule.
+    window.show().map_err(|e| e.to_string())?;
+    #[cfg(windows)]
+    if let Some(hwnd) = island_hwnd(&window.state::<AppState>()) {
+        overlay::apply_styles(hwnd);
+        overlay::raise(hwnd);
     }
     window.state::<AppState>().log(&format!("île prête : {w}×{h} px physiques, échelle {scale}"));
     Ok(())
@@ -136,6 +160,7 @@ fn island_state(window: WebviewWindow, state: String) {
 // Le curseur est-il sur la pilule ? Oui : la fenêtre capte les clics ; non : elle les laisse passer.
 #[tauri::command]
 fn set_interactive(window: WebviewWindow, on: bool) {
+    window.state::<AppState>().island_interactive.store(on, Ordering::Relaxed);
     set_click_through(&window, !on);
 }
 
@@ -205,28 +230,44 @@ fn spawn_cursor_poller(app: AppHandle) {
 }
 
 // Quand la fenêtre de l'agent revient au premier plan par un autre chemin (Alt+Tab, barre des
-// tâches), l'île part d'elle-même.
+// tâches), l'île part d'elle-même. Il faut une vraie transition : le premier plan passe d'un
+// autre programme à celui de l'agent, juste après une entrée de l'utilisateur.
+//
+// Survoler la pilule rend la fenêtre captante, et Windows réémet alors un changement de premier
+// plan vers la fenêtre déjà active (le terminal) : l'île partait dès qu'on la survolait. D'où
+// trois garde-fous : le premier plan de départ est relevé à l'apparition de l'île (sans
+// changement vu depuis, l'ancienne valeur était périmée) ; rien ne compte tant que la souris
+// est sur la pilule ; les événements de l'app et de WebView2 sont ignorés.
 #[cfg(windows)]
 fn watch_foreground(app: AppHandle) {
     focus::watch_foreground(move |hwnd| {
-        let name = focus::process_name(hwnd);
-        let state = app.state::<AppState>();
-        let mut core = state.core.lock().unwrap();
-        let matches = match (core.focus_process(), name.as_deref()) {
-            (Some(target), Some(name)) => target.eq_ignore_ascii_case(name),
-            _ => false,
-        };
-        let by_user = focus::ms_since_last_input() < USER_SWITCH_MS;
-        if matches && !by_user {
-            state.log("fenêtre de l'agent au premier plan sans action de l'utilisateur → ignoré");
+        let Some(name) = focus::process_name(hwnd) else { return };
+        if OWN_PROCESSES.iter().any(|p| p.eq_ignore_ascii_case(&name)) {
             return;
         }
-        if matches {
-            core.clear();
-            drop(core);
-            state.log("fenêtre de l'agent revenue au premier plan → sortie");
-            let _ = app.emit_to(ISLAND, "island://dismiss", DismissPayload { reason: "external" });
+        let state = app.state::<AppState>();
+        let before = state.foreground.lock().unwrap().replace(name.clone());
+        if state.island_interactive.load(Ordering::Relaxed) {
+            return;
         }
+        let mut core = state.core.lock().unwrap();
+        let Some(target) = core.focus_process() else { return };
+        let is_target = |p: &str| p.eq_ignore_ascii_case(target);
+        if !is_target(&name) || before.as_deref().is_some_and(is_target) {
+            return;
+        }
+        if focus::ms_since_last_input() >= USER_SWITCH_MS {
+            state.log(&format!("premier plan {before:?} → {name} sans action de l'utilisateur → ignoré"));
+            return;
+        }
+        if focus::ms_since_desktop_switch() < AFTER_UNLOCK_MS {
+            state.log(&format!("premier plan {before:?} → {name} juste après un déverrouillage → ignoré"));
+            return;
+        }
+        core.clear();
+        drop(core);
+        state.log(&format!("premier plan {before:?} → {name} : l'utilisateur est revenu → sortie"));
+        let _ = app.emit_to(ISLAND, "island://dismiss", DismissPayload { reason: "external" });
     });
 }
 
@@ -340,6 +381,8 @@ pub fn run() {
                 core: Mutex::new(Core::default()),
                 dir: settings.dir.clone(),
                 island_visible: AtomicBool::new(false),
+                island_interactive: AtomicBool::new(false),
+                foreground: Mutex::new(None),
                 island_hwnd: AtomicIsize::new(0),
                 cursor_thread: OnceLock::new(),
             });

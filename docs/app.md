@@ -39,7 +39,11 @@ et commandes Tauri. Le **même** `src/island.ts` sert au playground.
   (`WS_EX_TOOLWINDOW`), toujours au premier plan (`HWND_TOPMOST`, réaffirmé à chaque
   apparition), visible sur tous les bureaux virtuels.
 - **Jamais activable** : `focusable(false)` de Tauri, doublé de `WS_EX_NOACTIVATE` posé à la
-  main. Affichage par `SW_SHOWNOACTIVATE`.
+  main. Vérifié : l'afficher ne prend pas le premier plan.
+- **Piège :** la fenêtre s'affiche par `window.show()` de Tauri, **jamais** par `ShowWindow`
+  directement. Tao garde son propre état « visible » et le réapplique à chaque changement de
+  réglage : une fenêtre montrée dans son dos était masquée au premier survol de la pilule
+  (bogue vu par Victor le 2026-09-26).
 - **Piège :** Tauri (tao) réécrit tout le style étendu quand il change un de ses réglages,
   notamment les clics traversants. `overlay::apply_styles` est rappelé après chaque changement.
 - La fenêtre reste affichée en permanence ; île cachée, elle est entièrement transparente et

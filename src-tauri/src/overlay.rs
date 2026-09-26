@@ -12,8 +12,8 @@
 use windows::Win32::Foundation::{HWND, POINT, RECT};
 use windows::Win32::UI::HiDpi::GetDpiForWindow;
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetCursorPos, GetWindowLongPtrW, GetWindowRect, SetWindowLongPtrW, SetWindowPos, ShowWindow, GWL_EXSTYLE,
-    HWND_TOPMOST, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW, SW_SHOWNOACTIVATE,
+    GetCursorPos, GetWindowLongPtrW, GetWindowRect, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE,
+    HWND_TOPMOST, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW,
     WS_EX_APPWINDOW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
 };
 
@@ -34,14 +34,6 @@ pub fn apply_styles(hwnd: HWND) {
             SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_FRAMECHANGED,
         );
     }
-}
-
-// Affiche sans activer.
-pub fn show(hwnd: HWND) {
-    unsafe {
-        let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
-    }
-    raise(hwnd);
 }
 
 // Repasse au-dessus de toutes les fenêtres « toujours au premier plan » (vidéo plein écran).

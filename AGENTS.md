@@ -62,6 +62,9 @@ d'autres). Ce fichier oriente ; la documentation vit dans `README.md` et `docs/`
 - Contrôle visuel de l'app sans Victor : les captures d'écran Windows sortent **noires** quand
   la session est verrouillée. Passer par le port DevTools de WebView2 (`docs/app.md`,
   « Développer et déboguer ») ; le journal de l'app dit ce qu'elle a reçu et fait.
+- Fenêtre Tauri : ne jamais l'afficher, la cacher ou changer ses styles par Win32 sans passer
+  par Tauri quand Tauri a un réglage pour ça ; tao réapplique son état et écrase le reste
+  (`docs/app.md`, « La fenêtre de l'île »).
 - Lancer un `.exe` Windows depuis WSL : `powershell.exe Start-Process`, pas `cmd.exe /c start`
   (l'interop garde les tubes ouverts et la commande ne rend jamais la main).
 - Vite 8 : `build.rolldownOptions` (et non plus `rollupOptions`).

@@ -32,8 +32,9 @@ chacune vérifiée par `GetForegroundWindow` ; la méthode qui a réussi est éc
 | 3 | `AttachThreadInput` sur le fil du premier plan actuel, `BringWindowToTop`, `SetForegroundWindow`, puis détachement | partage momentané de l'état clavier |
 
 Vérifié le 2026-09-26 (Windows 11 26200) : fenêtre cible réduite derrière Windows Terminal →
-restaurée et au premier plan, méthode 1, déclenchée sans clic réel. **Non vérifié** : un vrai
-clic de souris sur l'île, une vidéo plein écran, un autre bureau virtuel (`docs/acceptance.md`).
+restaurée et au premier plan (méthode 1, déclenchée sans clic réel). **Vrai clic de Victor** sur
+l'île : la méthode 1 échoue, la **méthode 2** ramène Windows Terminal — le verrou joue bien, à
+cause de WebView2. Non vérifié : vidéo plein écran, autre bureau virtuel (`docs/acceptance.md`).
 
 ## L'île ne doit jamais voler le focus
 
@@ -45,10 +46,24 @@ clic de souris sur l'île, une vidéo plein écran, un autre bureau virtuel (`do
 ## Départ de l'île quand l'agent revient au premier plan
 
 Un abonnement `SetWinEventHook(EVENT_SYSTEM_FOREGROUND)` (fil dédié avec sa boucle de messages)
-reçoit chaque changement de premier plan. Si la nouvelle fenêtre appartient à
-`focus.process` **et** que l'utilisateur a touché clavier ou souris dans les 1,5 s
-(`GetLastInputInfo`), l'île part.
+reçoit chaque changement de premier plan. L'île part seulement si **toutes** ces conditions
+tiennent :
 
-Sans la seconde condition, l'île partait toute seule : quand une notification Windows se ferme,
-ou au verrouillage de la session, Windows rend le premier plan à la fenêtre d'avant — souvent
-le terminal — sans action de l'utilisateur (observé le 2026-09-26).
+1. la nouvelle fenêtre appartient à `focus.process` ;
+2. le premier plan d'avant était **un autre** programme. Le point de départ est relevé à
+   l'apparition de l'île, puis suivi à chaque changement ; les événements de l'app et de
+   WebView2 (`reverse-prompt.exe`, `msedgewebview2.exe`) ne comptent pas ;
+3. la souris n'est pas sur la pilule (fenêtre captante) ;
+4. l'utilisateur a touché clavier ou souris dans les 1,5 s (`GetLastInputInfo`) ;
+5. aucun changement de bureau (`EVENT_SYSTEM_DESKTOPSWITCH` : verrouillage, déverrouillage)
+   dans les 3 s.
+
+Chacune corrige un départ intempestif observé le 2026-09-26 :
+
+| Condition | Sans elle |
+| --- | --- |
+| 2 et 3 | survoler la pilule la rend captante ; Windows réémet alors « terminal au premier plan » alors qu'il l'était déjà, et l'île partait. Le point de départ relevé au lancement de l'app était en outre périmé (aucun changement vu depuis) |
+| 4 | une notification Windows qui se ferme, ou le verrouillage, rend le premier plan au terminal sans action de l'utilisateur |
+| 5 | au déverrouillage, le mot de passe tapé compte comme une entrée, et le terminal revient au premier plan : l'île partait au moment où l'utilisateur revenait la voir |
+
+Chaque décision est écrite au journal avec le programme d'avant et d'après.

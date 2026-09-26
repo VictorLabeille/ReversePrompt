@@ -44,13 +44,13 @@ export const animation = {
   thread: {
     neckRadiusPx: 4,
     thinRadiusPx: 1.4,
-    retractMs: 170,
+    retractMs: 340,
   },
   entry: {
-    filmMs: 220,
-    gatherMs: 320,
-    hangMs: 200,
-    fallMs: 230,
+    filmMs: 440,
+    gatherMs: 640,
+    hangMs: 400,
+    fallMs: 460,
     breakRatio: 0.35,
     contentStartRatio: 0.9,
     bounce: { stiffness: 260, damping: 18 },
