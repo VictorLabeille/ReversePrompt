@@ -26,6 +26,8 @@ d'autres). Ce fichier oriente ; la documentation vit dans `README.md` et `docs/`
 | `scripts/windows.mjs` | miroir WSL → NTFS et commandes Windows (`npm run win:*`) |
 | `docs/event-contract.md` | **le contrat** que l'app accepte ; seul point de contact avec les outils |
 | `docs/adapters/` | un fichier par outil : faits vérifiés + traduction vers le contrat |
+| `adapters/<outil>/` | scripts de hook, installeur et tests d'un adaptateur (`npm run test:adapters`) |
+| `docs/acceptance.md` | recette : ce que seul Victor peut vérifier |
 
 ## Règles
 - Aucune valeur d'animation en dur hors de `src/config/animation.ts`. Une nouvelle clé garde un
@@ -69,4 +71,6 @@ d'autres). Ce fichier oriente ; la documentation vit dans `README.md` et `docs/`
   fichiers directement : ils passent par `import.meta.glob` dans `icons/icon.ts`, sinon un clone du
   dépôt ne compile plus.
 - `~/.claude/settings.json` (WSL) contient déjà des hooks : toute installation de hook **fusionne**,
-  n'écrase jamais.
+  n'écrase jamais — passer par `adapters/claude/install.py`, testé sur copies.
+- Les hooks ReversePrompt sont **installés sur le poste** : chaque session Claude Code de Victor
+  (y compris celle d'un agent qui travaille ici) envoie ses événements à l'app installée.
