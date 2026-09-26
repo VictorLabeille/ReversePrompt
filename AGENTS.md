@@ -57,6 +57,11 @@ d'autres). Ce fichier oriente ; la documentation vit dans `README.md` et `docs/`
 - Le playground se sert depuis WSL mais se juge dans un navigateur Windows (police Segoe UI
   Variable, écran 120 Hz). Un navigateur headless (SwiftShader) sert à capturer des images, pas
   à mesurer la fluidité.
+- Contrôle visuel de l'app sans Victor : les captures d'écran Windows sortent **noires** quand
+  la session est verrouillée. Passer par le port DevTools de WebView2 (`docs/app.md`,
+  « Développer et déboguer ») ; le journal de l'app dit ce qu'elle a reçu et fait.
+- Lancer un `.exe` Windows depuis WSL : `powershell.exe Start-Process`, pas `cmd.exe /c start`
+  (l'interop garde les tubes ouverts et la commande ne rend jamais la main).
 - Vite 8 : `build.rolldownOptions` (et non plus `rollupOptions`).
 - Vite 8 en dev sert **vide** une feuille CSS liée par `<link>` dans une page HTML : importer le
   CSS depuis le script (`import './x.css'`), jamais par `<link>`.
