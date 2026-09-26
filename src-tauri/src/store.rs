@@ -69,9 +69,9 @@ pub fn log(dir: &Path, message: &str) {
     if fs::metadata(&path).map(|m| m.len() > LOG_MAX_BYTES).unwrap_or(false) {
         let _ = fs::rename(&path, dir.join("reverse-prompt.log.old"));
     }
-    let secs = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    let ms = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis()).unwrap_or(0);
     if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(&path) {
-        let _ = writeln!(f, "{secs} {message}");
+        let _ = writeln!(f, "{ms} {message}");
     }
 }
 
