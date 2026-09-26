@@ -1,0 +1,428 @@
+[
+ {
+  "name": "Stop depuis le CLI",
+  "env": {
+   "CLAUDE_CODE_ENTRYPOINT": "cli"
+  },
+  "hook": {
+   "hook_event_name": "Stop",
+   "session_id": "s1",
+   "last_assistant_message": "fini"
+  },
+  "expect": {
+   "v": 1,
+   "kind": "done",
+   "session": "s1",
+   "source": "claude-code",
+   "focus": {
+    "process": "WindowsTerminal.exe"
+   }
+  }
+ },
+ {
+  "name": "Stop avec tâches de fond : pas fini",
+  "env": {
+   "CLAUDE_CODE_ENTRYPOINT": "cli"
+  },
+  "hook": {
+   "hook_event_name": "Stop",
+   "session_id": "s1",
+   "background_tasks": [
+    {
+     "id": "t"
+    }
+   ]
+  },
+  "expect": null
+ },
+ {
+  "name": "Stop, tableau de tâches vide",
+  "env": {
+   "CLAUDE_CODE_ENTRYPOINT": "cli"
+  },
+  "hook": {
+   "hook_event_name": "Stop",
+   "session_id": "s1",
+   "background_tasks": []
+  },
+  "expect": {
+   "v": 1,
+   "kind": "done",
+   "session": "s1",
+   "source": "claude-code",
+   "focus": {
+    "process": "WindowsTerminal.exe"
+   }
+  }
+ },
+ {
+  "name": "StopFailure",
+  "env": {
+   "CLAUDE_CODE_ENTRYPOINT": "cli"
+  },
+  "hook": {
+   "hook_event_name": "StopFailure",
+   "session_id": "s1",
+   "error": "rate_limit"
+  },
+  "expect": {
+   "v": 1,
+   "kind": "needs-input",
+   "session": "s1",
+   "source": "claude-code",
+   "focus": {
+    "process": "WindowsTerminal.exe"
+   }
+  }
+ },
+ {
+  "name": "Autorisation demandée",
+  "env": {
+   "CLAUDE_CODE_ENTRYPOINT": "cli"
+  },
+  "hook": {
+   "hook_event_name": "Notification",
+   "session_id": "s1",
+   "notification_type": "permission_prompt",
+   "message": "x"
+  },
+  "expect": {
+   "v": 1,
+   "kind": "needs-input",
+   "session": "s1",
+   "source": "claude-code",
+   "focus": {
+    "process": "WindowsTerminal.exe"
+   }
+  }
+ },
+ {
+  "name": "Formulaire MCP",
+  "env": {
+   "CLAUDE_CODE_ENTRYPOINT": "cli"
+  },
+  "hook": {
+   "hook_event_name": "Notification",
+   "session_id": "s1",
+   "notification_type": "elicitation_dialog"
+  },
+  "expect": {
+   "v": 1,
+   "kind": "needs-input",
+   "session": "s1",
+   "source": "claude-code",
+   "focus": {
+    "process": "WindowsTerminal.exe"
+   }
+  }
+ },
+ {
+  "name": "URL MCP",
+  "env": {
+   "CLAUDE_CODE_ENTRYPOINT": "cli"
+  },
+  "hook": {
+   "hook_event_name": "Notification",
+   "session_id": "s1",
+   "notification_type": "elicitation_url_dialog"
+  },
+  "expect": {
+   "v": 1,
+   "kind": "needs-input",
+   "session": "s1",
+   "source": "claude-code",
+   "focus": {
+    "process": "WindowsTerminal.exe"
+   }
+  }
+ },
+ {
+  "name": "Session de fond en attente",
+  "env": {
+   "CLAUDE_CODE_ENTRYPOINT": "cli"
+  },
+  "hook": {
+   "hook_event_name": "Notification",
+   "session_id": "s1",
+   "notification_type": "agent_needs_input"
+  },
+  "expect": {
+   "v": 1,
+   "kind": "needs-input",
+   "session": "s1",
+   "source": "claude-code",
+   "focus": {
+    "process": "WindowsTerminal.exe"
+   }
+  }
+ },
+ {
+  "name": "idle_prompt ignoré",
+  "env": {
+   "CLAUDE_CODE_ENTRYPOINT": "cli"
+  },
+  "hook": {
+   "hook_event_name": "Notification",
+   "session_id": "s1",
+   "notification_type": "idle_prompt"
+  },
+  "expect": null
+ },
+ {
+  "name": "auth_success ignoré",
+  "env": {
+   "CLAUDE_CODE_ENTRYPOINT": "cli"
+  },
+  "hook": {
+   "hook_event_name": "Notification",
+   "session_id": "s1",
+   "notification_type": "auth_success"
+  },
+  "expect": null
+ },
+ {
+  "name": "Question à l'utilisateur",
+  "env": {
+   "CLAUDE_CODE_ENTRYPOINT": "cli"
+  },
+  "hook": {
+   "hook_event_name": "PreToolUse",
+   "session_id": "s1",
+   "tool_name": "AskUserQuestion"
+  },
+  "expect": {
+   "v": 1,
+   "kind": "needs-input",
+   "session": "s1",
+   "source": "claude-code",
+   "focus": {
+    "process": "WindowsTerminal.exe"
+   }
+  }
+ },
+ {
+  "name": "Autre outil ignoré",
+  "env": {
+   "CLAUDE_CODE_ENTRYPOINT": "cli"
+  },
+  "hook": {
+   "hook_event_name": "PreToolUse",
+   "session_id": "s1",
+   "tool_name": "Bash"
+  },
+  "expect": null
+ },
+ {
+  "name": "Message envoyé",
+  "env": {
+   "CLAUDE_CODE_ENTRYPOINT": "cli"
+  },
+  "hook": {
+   "hook_event_name": "UserPromptSubmit",
+   "session_id": "s1",
+   "prompt": "secret"
+  },
+  "expect": {
+   "v": 1,
+   "kind": "dismiss",
+   "session": "s1",
+   "source": "claude-code",
+   "focus": {
+    "process": "WindowsTerminal.exe"
+   }
+  }
+ },
+ {
+  "name": "Fin de session",
+  "env": {
+   "CLAUDE_CODE_ENTRYPOINT": "cli"
+  },
+  "hook": {
+   "hook_event_name": "SessionEnd",
+   "session_id": "s1",
+   "reason": "other"
+  },
+  "expect": {
+   "v": 1,
+   "kind": "dismiss",
+   "session": "s1",
+   "source": "claude-code",
+   "focus": {
+    "process": "WindowsTerminal.exe"
+   }
+  }
+ },
+ {
+  "name": "Événement non traduit",
+  "env": {
+   "CLAUDE_CODE_ENTRYPOINT": "cli"
+  },
+  "hook": {
+   "hook_event_name": "PostToolUse",
+   "session_id": "s1"
+  },
+  "expect": null
+ },
+ {
+  "name": "Terminal de VS Code",
+  "env": {
+   "CLAUDE_CODE_ENTRYPOINT": "cli",
+   "TERM_PROGRAM": "vscode"
+  },
+  "hook": {
+   "hook_event_name": "Stop",
+   "session_id": "s1"
+  },
+  "expect": {
+   "v": 1,
+   "kind": "done",
+   "session": "s1",
+   "source": "claude-code",
+   "focus": {
+    "process": "Code.exe"
+   }
+  }
+ },
+ {
+  "name": "Claude Desktop",
+  "env": {
+   "CLAUDE_CODE_ENTRYPOINT": "claude-desktop"
+  },
+  "hook": {
+   "hook_event_name": "Stop",
+   "session_id": "d1"
+  },
+  "expect": {
+   "v": 1,
+   "kind": "done",
+   "session": "d1",
+   "source": "claude-desktop",
+   "focus": {
+    "process": "claude.exe"
+   }
+  }
+ },
+ {
+  "name": "Claude Desktop, autre fournisseur",
+  "env": {
+   "CLAUDE_CODE_ENTRYPOINT": "claude-desktop-3p"
+  },
+  "hook": {
+   "hook_event_name": "Notification",
+   "session_id": "d1",
+   "notification_type": "permission_prompt"
+  },
+  "expect": {
+   "v": 1,
+   "kind": "needs-input",
+   "session": "d1",
+   "source": "claude-desktop",
+   "focus": {
+    "process": "claude.exe"
+   }
+  }
+ },
+ {
+  "name": "Cowork ignoré",
+  "env": {
+   "CLAUDE_CODE_ENTRYPOINT": "local-agent",
+   "REVERSE_PROMPT_TEST_STDIN_TTY": "1"
+  },
+  "hook": {
+   "hook_event_name": "Stop",
+   "session_id": "c1"
+  },
+  "expect": null
+ },
+ {
+  "name": "Sans point d'entrée : ignoré",
+  "env": {},
+  "hook": {
+   "hook_event_name": "Stop",
+   "session_id": "s1"
+  },
+  "expect": null
+ },
+ {
+  "name": "Session sans identifiant",
+  "env": {
+   "CLAUDE_CODE_ENTRYPOINT": "cli"
+  },
+  "hook": {
+   "hook_event_name": "Stop"
+  },
+  "expect": {
+   "v": 1,
+   "kind": "done",
+   "session": "inconnue",
+   "source": "claude-code",
+   "focus": {
+    "process": "WindowsTerminal.exe"
+   }
+  }
+ },
+ {
+  "name": "Identifiant tronqué à 128",
+  "env": {
+   "CLAUDE_CODE_ENTRYPOINT": "cli"
+  },
+  "hook": {
+   "hook_event_name": "Stop",
+   "session_id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  },
+  "expect": {
+   "v": 1,
+   "kind": "done",
+   "session": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+   "source": "claude-code",
+   "focus": {
+    "process": "WindowsTerminal.exe"
+   }
+  }
+ },
+ {
+  "name": "Entrée qui n'est pas un objet",
+  "env": {
+   "CLAUDE_CODE_ENTRYPOINT": "cli"
+  },
+  "hook": [
+   1,
+   2
+  ],
+  "expect": null
+ },
+ {
+  "name": "WSL : SDK piloté par tubes → Desktop",
+  "env": {
+   "CLAUDE_CODE_ENTRYPOINT": "sdk-cli",
+   "REVERSE_PROMPT_TEST_STDIN_TTY": "0"
+  },
+  "hook": {
+   "hook_event_name": "Stop",
+   "session_id": "w1"
+  },
+  "expect": {
+   "v": 1,
+   "kind": "done",
+   "session": "w1",
+   "source": "claude-desktop",
+   "focus": {
+    "process": "claude.exe"
+   }
+  },
+  "only": "linux"
+ },
+ {
+  "name": "WSL : claude -p dans un terminal → ignoré",
+  "env": {
+   "CLAUDE_CODE_ENTRYPOINT": "sdk-cli",
+   "REVERSE_PROMPT_TEST_STDIN_TTY": "1"
+  },
+  "hook": {
+   "hook_event_name": "Stop",
+   "session_id": "w1"
+  },
+  "expect": null,
+  "only": "linux"
+ }
+]

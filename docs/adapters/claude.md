@@ -75,14 +75,18 @@ part ~6 s après la demande **sans** être repoussé par la frappe (depuis la v2
 ### Distinguer le CLI de Claude Desktop
 
 - **Observé, non documenté :** la variable `CLAUDE_CODE_ENTRYPOINT` vaut `cli` dans un hook du
-  CLI lancé depuis un terminal (relevé dans cette session). Les journaux de Claude Desktop
-  listent `CLAUDE_CODE_ENTRYPOINT` parmi les variables qu'il transmet à ses sessions ; **sa
-  valeur n'a pas été relevée**. Règle retenue : `cli` → terminal, toute autre valeur non vide →
-  Claude Desktop.
-- **Repli dans WSL** (la variable peut ne pas franchir la frontière Windows → WSL) : Claude
-  Code exporte `CLAUDE_PID` (observé, non documenté). Si l'entrée standard de ce processus est
-  un terminal (`/proc/$CLAUDE_PID/fd/0` → `/dev/pts/*`), c'est le CLI ; Desktop le pilote par
-  des tubes.
+  CLI interactif lancé depuis un terminal (relevé le 2026-09-26). Le code de Claude Desktop
+  (`app.asar`, version 1.52386.6.0) la pose pour les sessions qu'il lance : `claude-desktop`
+  ou `claude-desktop-3p` (onglet Code, selon le fournisseur), `local-agent` (Cowork, dans une
+  machine virtuelle), et `sdk-ts` par défaut dans son SDK. Règle retenue : `cli` → terminal,
+  `claude-desktop*` → Claude Desktop, toute autre valeur → pas de notification (sessions
+  sans fenêtre à ramener : `claude -p` dans un script, Cowork).
+- **Repli dans WSL** (la variable peut ne pas franchir la frontière Windows → WSL ; le CLI
+  pose alors sa propre valeur) : Claude Code exporte `CLAUDE_PID` (observé, non documenté).
+  Pour une valeur autre que `cli` et `claude-desktop*`, si l'entrée standard de ce processus
+  n'est **pas** un terminal (`/proc/$CLAUDE_PID/fd/0` hors de `/dev/pts/*`), la session est
+  tenue pour une session Desktop dans WSL : Desktop pilote le CLI par des tubes. Risque
+  connu : un `claude -p` alimenté par un tube dans un script WSL passerait pour Desktop.
 - **À confirmer par Victor** avec une vraie session Desktop (`docs/acceptance.md`).
 
 ### Claude Desktop — conversations (chat)
@@ -110,4 +114,70 @@ Obsidian. Rien n'est implémenté pour le chat en attendant.
 
 ## 2. L'adaptateur
 
-_(Rempli au jalon J5 / J7.)_
+Fichiers : `adapters/claude/`.
+
+| Fichier | Rôle |
+| --- | --- |
+| `notify.py` | hook côté Linux/WSL : traduit, envoie par `curl.exe` détaché |
+| `notify.ps1` | hook côté Windows (Claude Desktop, CLI Windows) : mêmes règles, envoi par `Invoke-WebRequest` |
+| `install.py` | installe ou retire les hooks des deux côtés, depuis WSL |
+| `test/cases.json` | cas de traduction communs aux deux scripts |
+| `test/run.py`, `test/install_test.py`, `test/hook_test.py` | tests (`npm run test:adapters`) |
+
+### Traduction
+
+| Signal Claude | Événement du contrat |
+| --- | --- |
+| `Stop` (sans `background_tasks` en cours) | `done` |
+| `StopFailure` | `needs-input` |
+| `Notification` `permission_prompt`, `elicitation_dialog`, `elicitation_url_dialog`, `agent_needs_input` | `needs-input` |
+| `PreToolUse` sur `AskUserQuestion` | `needs-input` |
+| `UserPromptSubmit`, `SessionEnd` | `dismiss` |
+| tout le reste | rien |
+
+- `session` = `session_id` (128 caractères au plus). Aucun `text` : l'île tire le sien dans
+  `src/messages.json`. Le contenu des messages (`prompt`, `last_assistant_message`, `message`)
+  n'est jamais lu ni transmis.
+- Où vit la session (règle de la section 1) :
+
+| `CLAUDE_CODE_ENTRYPOINT` | `source` | `focus.process` |
+| --- | --- | --- |
+| `cli` | `claude-code` | `WindowsTerminal.exe` ; `Code.exe` si `TERM_PROGRAM=vscode` |
+| `claude-desktop`, `claude-desktop-3p` | `claude-desktop` | `claude.exe` |
+| autre valeur, WSL, entrée du processus Claude hors terminal | `claude-desktop` | `claude.exe` |
+| autre valeur, ou absente | — pas de notification — | |
+
+### Hooks installés
+
+Même commande pour tous les événements ci-dessus, avec les `matcher` de `Notification` et
+`PreToolUse`. Tous en `async: true`, sauf `SessionEnd` côté WSL, synchrone : un hook en
+arrière-plan pourrait être tué avec la session avant d'avoir envoyé, et `notify.py` rend la
+main en moins de 100 ms (mesuré, app arrêtée).
+
+| Côté | Réglages | Fichiers | Commande |
+| --- | --- | --- | --- |
+| WSL | `~/.claude/settings.json` | `~/.claude/reverse-prompt/` | `python3 <…>/notify.py` |
+| Windows | `%USERPROFILE%\.claude\settings.json` | `%USERPROFILE%\.claude\reverse-prompt\` | `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "<…>/notify.ps1"` |
+
+`endpoint.json` (port et jeton de l'app, copiés à l'installation) accompagne chaque script.
+Si le jeton de l'app change (fichier `token` supprimé), relancer l'installation.
+
+```bash
+npm run claude:install      # installe ou met à jour, des deux côtés
+npm run claude:uninstall    # retire hooks et fichiers
+python3 adapters/claude/install.py --dry-run   # montre sans écrire
+```
+
+L'installation fusionne : nos gestionnaires se reconnaissent à `reverse-prompt/notify` dans
+leur commande, sont retirés puis remis ; tout le reste du fichier est conservé. Copie
+horodatée (`settings.json.reverse-prompt-<date>.bak`) avant toute écriture, aucune si rien ne
+change. Un `settings.json` illisible n'est jamais réécrit. Seule perte possible à la
+désinstallation : une liste d'événement **vide** qui existait avant (`"Stop": []`) disparaît —
+sans effet sur Claude.
+
+### Limites connues
+
+- La distinction CLI / Desktop repose sur des variables non documentées (section 1).
+- `notify.ps1` démarre PowerShell (~0,3 à 0,5 s) : la notification d'une session Desktop arrive
+  un peu plus tard que celle du CLI. Sans conséquence pour Claude (hook en arrière-plan).
+- Le retour à la fenêtre ramène la fenêtre du programme, pas l'onglet ni la session précise.

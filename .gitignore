@@ -5,3 +5,4 @@ dist/
 # Leur usage hors mention en texte exige une autorisation écrite d'Anthropic : jamais dans ce
 # dépôt public (décision de Victor). Sans elles, l'île utilise l'icône neutre.
 src/icons/brand/
+__pycache__/
