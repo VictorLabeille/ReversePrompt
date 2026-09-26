@@ -16,7 +16,7 @@
 // tout changement y est écrasé à la synchro suivante.
 
 import { execFileSync, spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, utimesSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, utimesSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 
 const REPO = resolve(import.meta.dirname, '..');
@@ -84,7 +84,20 @@ function win(command) {
     cwd: '/mnt/c',
     stdio: 'inherit',
   });
+  pullCargoLock();
   if (r.status !== 0) process.exit(r.status ?? 1);
+}
+
+// Cargo.lock naît côté Windows (pas de cargo dans WSL) : on le rapatrie dans le dépôt, où il
+// est versionné, sinon la synchro suivante l'effacerait du miroir.
+function pullCargoLock() {
+  const src = join(MIRROR, 'src-tauri/Cargo.lock');
+  const dst = join(REPO, 'src-tauri/Cargo.lock');
+  if (!existsSync(src)) return;
+  const s = statSync(src);
+  if (existsSync(dst) && statSync(dst).size === s.size && readFileSync(dst).equals(readFileSync(src))) return;
+  copyFileSync(src, dst);
+  utimesSync(dst, s.atime, s.mtime);
 }
 
 // node_modules Windows : réinstallé seulement quand le verrou a changé.

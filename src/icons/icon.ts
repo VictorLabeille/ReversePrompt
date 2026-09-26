@@ -6,7 +6,8 @@ import { DropIcon } from './drop';
 
 // Outil à l'origine de la notification. Un nouvel outil ajoute sa valeur ici et, s'il a une
 // icône propre, un module dans icons/ ou icons/brand/.
-export type Source = 'claude-code' | 'claude-desktop' | 'generic';
+// Toute autre valeur (outil sans icône propre) affiche l'icône neutre.
+export type Source = 'claude-code' | 'claude-desktop' | 'generic' | (string & {});
 
 export interface Icon {
   readonly element: SVGSVGElement;

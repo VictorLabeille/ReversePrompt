@@ -10,7 +10,7 @@
     "beforeBuildCommand": "npm run build"
   },
   "app": {
-    "windows": [{ "label": "probe", "title": "ReversePrompt", "width": 400, "height": 200 }],
+    "windows": [],
     "security": { "csp": null }
   },
   "bundle": {
