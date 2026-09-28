@@ -31,6 +31,16 @@ function Get-Surface {
     return $null
 }
 
+# Même règle que notify.py : l'app cherche la marque de la session dans les titres d'onglet,
+# si Claude a laissé le titre aux hooks. Côté Windows, aucun hook n'écrit ce titre (PowerShell
+# démarre trop lentement pour un hook synchrone) : l'installeur n'y pose pas la variable.
+function Get-TabMarker($hook) {
+    if ($env:CLAUDE_CODE_DISABLE_TERMINAL_TITLE -ne '1' -or $env:TERM_PROGRAM -eq 'vscode') { return $null }
+    $sid = (([string]$hook.session_id).ToCharArray() | Where-Object { [char]::IsLetterOrDigit($_) }) -join ''
+    if (-not $sid) { return $null }
+    return $sid.Substring(0, [Math]::Min(6, $sid.Length)).ToLowerInvariant()
+}
+
 function ConvertTo-Event($hook) {
     if ($null -eq $hook -or $hook -isnot [pscustomobject]) { return $null }
     $kind = Get-Kind $hook
@@ -47,6 +57,8 @@ function ConvertTo-Event($hook) {
         $event.source = 'claude-code'
         $process = if ($env:TERM_PROGRAM -eq 'vscode') { 'Code.exe' } else { 'WindowsTerminal.exe' }
         $event.focus = [ordered]@{ process = $process }
+        $marker = Get-TabMarker $hook
+        if ($marker) { $event.focus.title = $marker }
     }
     return $event
 }

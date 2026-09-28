@@ -57,13 +57,17 @@ et ignore toute erreur : app arrêtée, l'outil doit continuer comme si de rien 
 | `session` | chaîne | oui | identifiant opaque de la session de l'outil, 1 à 128 caractères. Sert au dédoublonnage et au `dismiss` |
 | `focus` | objet | non | la fenêtre à ramener au clic. Absent : le clic ferme l'île sans changer de fenêtre |
 | `focus.process` | chaîne | oui dans `focus` | nom de l'exécutable qui possède la fenêtre, `*.exe`, 64 caractères au plus, casse ignorée (`WindowsTerminal.exe`, `claude.exe`, `Code.exe`…) |
-| `focus.title` | chaîne | non | fragment du titre de fenêtre, 128 caractères au plus, casse ignorée : départage plusieurs fenêtres du même programme |
+| `focus.title` | chaîne | non | fragment du titre de fenêtre **ou d'onglet**, 128 caractères au plus, casse ignorée : départage plusieurs fenêtres, ou plusieurs onglets, du même programme. L'émetteur doit s'assurer que ce fragment désigne un seul onglet (l'adaptateur Claude pose lui-même un titre unique) |
 | `text` | chaîne | non | texte de la pilule. Tronqué à 32 caractères (avec `…`) ; absent ou vide : un texte tiré au hasard dans `src/messages.json` selon `kind` |
 
 Les champs inconnus sont **ignorés** : un émetteur peut en ajouter sans casser un serveur plus
 ancien. Un champ connu mais de mauvais type ou hors limites donne `400`.
 
 `needs-input` et `done` font apparaître l'île ; `dismiss` la fait partir.
+
+Dans Windows Terminal, le titre de la fenêtre est celui de l'onglet actif : une cible avec
+`focus.title` désigne donc un onglet, et « la cible est au premier plan » veut dire « sa
+fenêtre est au premier plan **et** son onglet est l'onglet actif ».
 
 ## Règles de l'app
 
@@ -80,11 +84,17 @@ ancien. Un champ connu mais de mauvais type ou hors limites donne `400`.
    d'un autre.
 5. **Pause.** Pendant une pause (menu de la zone de notification), les événements `done` et
    `needs-input` sont ignorés ; `dismiss` reste appliqué.
-6. **Clic gauche** : ramène la fenêtre `focus` (restaurée si réduite), puis l'île part.
+6. **Déjà sur la cible.** Un `done` ou `needs-input` dont la cible a un `focus.title` et est
+   déjà au premier plan à son arrivée est ignoré : l'utilisateur regarde déjà l'onglet.
+   Sans `focus.title`, l'île apparaît toujours (on ne sait pas quel onglet est le bon).
+7. **Clic gauche** : ramène la fenêtre `focus` (restaurée si réduite) ; si aucune fenêtre ne
+   porte le titre `focus.title` mais qu'un de ses **onglets** le porte, cet onglet est
+   sélectionné d'abord. Puis l'île part.
    **Clic droit** : l'île part, la fenêtre active ne change pas. Dans les deux cas la cible
    courante est oubliée.
-7. **Retour par un autre chemin** : quand une fenêtre du programme `focus.process` passe au
-   premier plan (Alt+Tab, barre des tâches), l'île part d'elle-même.
+8. **Retour par un autre chemin** : quand la cible passe au premier plan (Alt+Tab, barre des
+   tâches, changement d'onglet), l'île part d'elle-même. Si la cible y était déjà, un clic
+   dedans la fait partir.
 
 ## Fichiers de l'app
 

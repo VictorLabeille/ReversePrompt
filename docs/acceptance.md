@@ -32,11 +32,21 @@ dit ce que l'app a reçu et fait.
 10. **Démarrage de Windows** : l'app se lance seule (icône dans la zone de notification).
     Menu : notification de test, playground, pause 1 h, quitter.
 11. **Sensation** générale : l'effet d'encre, la frappe, les textes.
+12. **Onglets** (retours du 2026-09-28 ; ouvrir **de nouvelles** sessions Claude Code, les
+    anciennes gardent le titre de Claude) — deux onglets Windows Terminal, chacun avec une
+    session : leurs titres sont `<dossier> · <6 caractères>`, différents.
+    - Tâche finie dans l'onglet A pendant qu'on est sur l'onglet B : l'île tombe ; clic → la
+      fenêtre revient **sur l'onglet A**.
+    - Même situation, passer soi-même sur l'onglet A (clic sur l'onglet, Ctrl+Tab) : l'île part.
+    - Tâche finie dans l'onglet A pendant qu'on **regarde** l'onglet A : pas d'île du tout.
+    - Onglet B au premier plan, île de A visible, clic **dans** l'onglet B : l'île reste.
+13. **Clic dans le terminal déjà au premier plan** (session ouverte avant l'installation, donc
+    sans titre à nous) : l'île est là, clic dans le terminal → elle part.
 
 ## Déjà vérifié automatiquement ou par l'agent (2026-09-26)
 
 - Contrat : validation du JSON, jeton, codes HTTP, règles du cœur — `npm run win:test`
-  (16 tests Rust).
+  (17 tests Rust depuis le 2026-09-28).
 - Adaptateur : 25 cas de traduction identiques pour `notify.py` et `notify.ps1` ; fusion des
   réglages idempotente, sauvegarde, désinstallation qui rend l'original, fichier illisible
   jamais écrasé ; hook app arrêtée : sortie 0 en moins de 100 ms — `npm run test:adapters`.

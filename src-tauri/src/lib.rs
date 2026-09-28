@@ -48,8 +48,9 @@ struct AppState {
     island_visible: AtomicBool,
     // Souris sur la pilule (fenêtre captante) : les changements de premier plan ne comptent pas.
     island_interactive: AtomicBool,
-    // Programme au premier plan au dernier changement vu (ou à l'apparition de l'île).
-    foreground: Mutex<Option<String>>,
+    // Fenêtre au premier plan au dernier changement vu (ou à l'apparition de l'île) : programme
+    // et titre. Le titre distingue les onglets de Windows Terminal.
+    foreground: Mutex<Option<(String, String)>>,
     island_hwnd: AtomicIsize,
     cursor_thread: OnceLock<thread::Thread>,
 }
@@ -72,6 +73,16 @@ struct DismissPayload {
     reason: &'static str,
 }
 
+// Programme et titre d'une fenêtre ; None pour les fenêtres de l'app et de son WebView2.
+#[cfg(windows)]
+fn describe(hwnd: windows::Win32::Foundation::HWND) -> Option<(String, String)> {
+    let name = focus::process_name(hwnd)?;
+    if OWN_PROCESSES.iter().any(|p| p.eq_ignore_ascii_case(&name)) {
+        return None;
+    }
+    Some((name, focus::window_title(hwnd)))
+}
+
 #[cfg(windows)]
 fn island_hwnd(state: &AppState) -> Option<windows::Win32::Foundation::HWND> {
     let raw = state.island_hwnd.load(Ordering::Relaxed);
@@ -82,6 +93,18 @@ fn island_hwnd(state: &AppState) -> Option<windows::Win32::Foundation::HWND> {
 fn dispatch(app: &AppHandle, event: Event) {
     let state = app.state::<AppState>();
     let summary = format!("{:?} source={} session={}", event.kind, event.source, event.session);
+    // Déjà sur l'onglet de l'agent : rien à signaler (choix de Victor, 2026-09-28). Seulement
+    // quand la cible a un fragment de titre : sans lui, on ne sait pas quel onglet est le bon.
+    #[cfg(windows)]
+    if event.kind != Kind::Dismiss {
+        if let Some(target) = event.focus.as_ref().filter(|f| f.title.is_some()) {
+            let fg = unsafe { windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow() };
+            if describe(fg).is_some_and(|(p, t)| target.matches(&p, &t)) {
+                state.log(&format!("événement {summary} → déjà sur la cible, ignoré"));
+                return;
+            }
+        }
+    }
     let action = state.core.lock().unwrap().handle(event, Instant::now());
     state.log(&format!("événement {summary} → {action:?}"));
     match action {
@@ -90,7 +113,7 @@ fn dispatch(app: &AppHandle, event: Event) {
             {
                 // Point de départ pour reconnaître un vrai retour vers la fenêtre de l'agent.
                 let fg = unsafe { windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow() };
-                *state.foreground.lock().unwrap() = focus::process_name(fg);
+                *state.foreground.lock().unwrap() = describe(fg);
                 if let Some(hwnd) = island_hwnd(&state) {
                     overlay::raise(hwnd);
                 }
@@ -183,10 +206,7 @@ fn activate(window: WebviewWindow) {
     };
     thread::spawn(move || {
         #[cfg(windows)]
-        let result = match focus::find_window(&target.process, target.title.as_deref()) {
-            Some(hwnd) => focus::bring_to_front(hwnd),
-            None => "aucune fenêtre trouvée",
-        };
+        let result = focus::activate(&target.process, target.title.as_deref());
         #[cfg(not(windows))]
         let result = "non géré hors Windows";
         app.state::<AppState>().log(&format!("clic : {} → {result}", target.process));
@@ -230,45 +250,68 @@ fn spawn_cursor_poller(app: AppHandle) {
 }
 
 // Quand la fenêtre de l'agent revient au premier plan par un autre chemin (Alt+Tab, barre des
-// tâches), l'île part d'elle-même. Il faut une vraie transition : le premier plan passe d'un
-// autre programme à celui de l'agent, juste après une entrée de l'utilisateur.
+// tâches, onglet de Windows Terminal), l'île part d'elle-même. Il faut une vraie transition :
+// le premier plan passe d'une autre fenêtre (ou d'un autre onglet) à la cible, juste après une
+// entrée de l'utilisateur. Changer d'onglet ne change pas le premier plan, seulement le titre
+// de la fenêtre : les deux événements passent ici.
 //
 // Survoler la pilule rend la fenêtre captante, et Windows réémet alors un changement de premier
 // plan vers la fenêtre déjà active (le terminal) : l'île partait dès qu'on la survolait. D'où
 // trois garde-fous : le premier plan de départ est relevé à l'apparition de l'île (sans
 // changement vu depuis, l'ancienne valeur était périmée) ; rien ne compte tant que la souris
 // est sur la pilule ; les événements de l'app et de WebView2 sont ignorés.
+//
+// Cible déjà au premier plan : aucune transition possible. Un clic dedans fait partir l'île.
 #[cfg(windows)]
 fn watch_foreground(app: AppHandle) {
-    focus::watch_foreground(move |hwnd| {
-        let Some(name) = focus::process_name(hwnd) else { return };
-        if OWN_PROCESSES.iter().any(|p| p.eq_ignore_ascii_case(&name)) {
-            return;
-        }
-        let state = app.state::<AppState>();
-        let before = state.foreground.lock().unwrap().replace(name.clone());
-        if state.island_interactive.load(Ordering::Relaxed) {
-            return;
-        }
-        let mut core = state.core.lock().unwrap();
-        let Some(target) = core.focus_process() else { return };
-        let is_target = |p: &str| p.eq_ignore_ascii_case(target);
-        if !is_target(&name) || before.as_deref().is_some_and(is_target) {
-            return;
-        }
-        if focus::ms_since_last_input() >= USER_SWITCH_MS {
-            state.log(&format!("premier plan {before:?} → {name} sans action de l'utilisateur → ignoré"));
-            return;
-        }
-        if focus::ms_since_desktop_switch() < AFTER_UNLOCK_MS {
-            state.log(&format!("premier plan {before:?} → {name} juste après un déverrouillage → ignoré"));
-            return;
-        }
-        core.clear();
-        drop(core);
-        state.log(&format!("premier plan {before:?} → {name} : l'utilisateur est revenu → sortie"));
-        let _ = app.emit_to(ISLAND, "island://dismiss", DismissPayload { reason: "external" });
-    });
+    let clicks = app.clone();
+    focus::watch_foreground(
+        move |hwnd| {
+            let Some(now) = describe(hwnd) else { return };
+            let state = app.state::<AppState>();
+            let before = state.foreground.lock().unwrap().replace(now.clone());
+            if state.island_interactive.load(Ordering::Relaxed) {
+                return;
+            }
+            let core = state.core.lock().unwrap();
+            let Some(target) = core.target() else { return };
+            let is_target = |(p, t): &(String, String)| target.matches(p, t);
+            if !is_target(&now) || before.as_ref().is_some_and(is_target) {
+                return;
+            }
+            let (from, to) = (before.map(|b| b.0), &now.0);
+            if focus::ms_since_last_input() >= USER_SWITCH_MS {
+                state.log(&format!("premier plan {from:?} → {to} sans action de l'utilisateur → ignoré"));
+                return;
+            }
+            if focus::ms_since_desktop_switch() < AFTER_UNLOCK_MS {
+                state.log(&format!("premier plan {from:?} → {to} juste après un déverrouillage → ignoré"));
+                return;
+            }
+            drop(core);
+            leave(&app, &format!("premier plan {from:?} → {to} : l'utilisateur est revenu → sortie"));
+        },
+        move |hwnd| {
+            let state = clicks.state::<AppState>();
+            if !state.island_visible.load(Ordering::Relaxed) {
+                return;
+            }
+            let Some((process, title)) = describe(hwnd) else { return };
+            if !state.core.lock().unwrap().target().is_some_and(|t| t.matches(&process, &title)) {
+                return;
+            }
+            leave(&clicks, &format!("clic dans {process}, déjà au premier plan → sortie"));
+        },
+    );
+}
+
+// L'utilisateur est revenu à l'agent : oublier la cible et faire partir l'île.
+#[cfg(windows)]
+fn leave(app: &AppHandle, reason: &str) {
+    let state = app.state::<AppState>();
+    state.core.lock().unwrap().clear();
+    state.log(reason);
+    let _ = app.emit_to(ISLAND, "island://dismiss", DismissPayload { reason: "external" });
 }
 
 // --- Fenêtres et zone de notification -----------------------------------------------------

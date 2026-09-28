@@ -42,6 +42,7 @@ Communs à tous les événements : `session_id`, `cwd`, `hook_event_name`, `tran
 | `UserPromptSubmit` | — (`prompt` n'est **pas** lu) | l'utilisateur envoie un message |
 | `SessionEnd` | `reason` | fin de session (`clear`, `resume`, `logout`, `prompt_input_exit`, `other`) |
 | `PreToolUse` | `tool_name` | avant chaque outil ; filtré sur `AskUserQuestion` |
+| `SessionStart` | — | début, reprise ou `/clear` d'une session : sert au titre de l'onglet |
 
 Types de `Notification` (champ `notification_type`, aussi valeur du `matcher`) :
 
@@ -112,6 +113,27 @@ Obsidian. Rien n'est implémenté pour le chat en attendant.
 - Windows : Rust 1.96 (MSVC), Node 24.18, npm 11.16, Git Bash, Windows Terminal 1.24.
 - Le titre de la fenêtre Windows Terminal reprend le titre de la session Claude Code.
 
+### Titre de l'onglet (relevé du 2026-09-28, Claude Code 2.1.283)
+
+- Claude Code écrit lui-même le titre du terminal : « Claude Code » tant que la session n'a pas
+  de titre, puis le titre généré par l'IA ou celui de `/rename`, précédé d'un symbole d'état
+  (`✳`). Deux onglets peuvent donc porter le même titre, surtout en début de session.
+- **Les hooks ne reçoivent pas ce titre** : aucun champ de titre ni de nom de session dans leur
+  entrée (`hooks.md`). La ligne d'état (`statusline.md`), elle, reçoit `session_name` (nom de
+  `/rename` ou titre généré ; absent tant qu'il n'y en a pas) avec `session_id`.
+- Un hook peut **écrire** le titre : champ de sortie `terminalSequence`, séquences OSC `0`/`1`/`2`
+  autorisées, émises par Claude Code en session interactive seulement (`hooks.md`, « Emit
+  terminal notifications »). Claude Code réécrit ensuite son propre titre à chaque changement.
+- Observé dans l'exécutable, non documenté : variable `CLAUDE_CODE_DISABLE_TERMINAL_TITLE`, et
+  réglage `terminalTitleFromRename` (« `/rename` met à jour le titre de l'onglet », vrai par
+  défaut).
+- **Vérifié le 2026-09-28** (Claude Code lancé dans un pseudo-terminal, séquences OSC relevées) :
+  sans la variable, Claude réécrit le titre à chaque changement d'état (`✳ Claude Code`,
+  `◐ Claude Code`, puis le titre de la réponse) et écrase celui d'un hook. Avec
+  `CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1`, qu'elle vienne de l'environnement ou du bloc `env` des
+  réglages, Claude n'écrit plus aucun titre et celui du hook reste. Un hook **synchrone** de
+  `SessionStart` ou `UserPromptSubmit` qui renvoie `terminalSequence` pose bien le titre.
+
 ## 2. L'adaptateur
 
 Fichiers : `adapters/claude/`.
@@ -135,6 +157,11 @@ Fichiers : `adapters/claude/`.
 | `UserPromptSubmit`, `SessionEnd` | `dismiss` |
 | tout le reste | rien |
 
+- `focus.title` = les 6 premiers caractères alphanumériques de `session_id`, en minuscules,
+  **seulement** si le titre de l'onglet est celui de l'adaptateur : `CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1`,
+  session CLI, hors terminal de VS Code. C'est la marque que l'app cherche dans les titres
+  d'onglet de Windows Terminal. Sans ces conditions, pas de `focus.title` : l'app ramène la
+  fenêtre, comme avant.
 - `session` = `session_id` (128 caractères au plus). Aucun `text` : l'île tire le sien dans
   `src/messages.json`. Le contenu des messages (`prompt`, `last_assistant_message`, `message`)
   n'est jamais lu ni transmis.
@@ -147,10 +174,30 @@ Fichiers : `adapters/claude/`.
 | autre valeur, WSL, entrée du processus Claude hors terminal | `claude-desktop` | `claude.exe` |
 | autre valeur, ou absente | — pas de notification — | |
 
+### Titre de l'onglet
+
+`notify.py --title`, hook **synchrone** de `SessionStart` et `UserPromptSubmit` côté WSL,
+répond `{"terminalSequence": "ESC ]2;<dossier> · <marque> BEL"}` (exemple :
+`ReversePrompt · c7bc2a`) : Claude Code écrit ce titre dans le terminal. Le nom du dossier
+(`cwd` du hook) n'est là que pour l'œil ; seule la marque sert à l'app. Réémis à chaque message,
+il se rétablit si quelque chose l'a changé entre-temps. L'installeur pose aussi
+`CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1` dans le bloc `env` de `~/.claude/settings.json`, sans
+quoi Claude écraserait ce titre. Conséquence : l'onglet ne montre plus ni le titre de sujet ni
+le symbole d'état de Claude (choix de Victor, 2026-09-28).
+
+Côté Windows, pas de titre : PowerShell démarre trop lentement (~0,3 à 0,5 s) pour un hook
+synchrone à chaque message. `notify.ps1` applique la même règle pour `focus.title`, mais la
+variable n'y est pas posée : le CLI Windows garde le retour à la fenêtre.
+
+Vérifié le 2026-09-28 : nouvelle session lancée avec les réglages installés → titre
+`ReversePrompt · c7bc2a` émis. Les sessions ouvertes **avant** l'installation gardent le titre
+de Claude, n'envoient pas de `focus.title` et gardent le retour à la fenêtre.
+
 ### Hooks installés
 
 Même commande pour tous les événements ci-dessus, avec les `matcher` de `Notification` et
-`PreToolUse`. Tous en `async: true`, sauf `SessionEnd` côté WSL, synchrone : un hook en
+`PreToolUse`, plus, côté WSL, `notify.py --title` (synchrone) sur `SessionStart` et
+`UserPromptSubmit`, et la variable `CLAUDE_CODE_DISABLE_TERMINAL_TITLE` dans `env`. Tous en `async: true`, sauf `SessionEnd` côté WSL, synchrone : un hook en
 arrière-plan pourrait être tué avec la session avant d'avoir envoyé, et `notify.py` rend la
 main en moins de 100 ms (mesuré, app arrêtée).
 
@@ -171,13 +218,18 @@ python3 adapters/claude/install.py --dry-run   # montre sans écrire
 L'installation fusionne : nos gestionnaires se reconnaissent à `reverse-prompt/notify` dans
 leur commande, sont retirés puis remis ; tout le reste du fichier est conservé. Copie
 horodatée (`settings.json.reverse-prompt-<date>.bak`) avant toute écriture, aucune si rien ne
-change. Un `settings.json` illisible n'est jamais réécrit. Seule perte possible à la
+change. Un `settings.json` illisible n'est jamais réécrit. Pertes possibles à la
 désinstallation : une liste d'événement **vide** qui existait avant (`"Stop": []`) disparaît —
-sans effet sur Claude.
+sans effet sur Claude ; `CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1` est retirée même si elle avait
+été posée à la main.
 
 ### Limites connues
 
 - La distinction CLI / Desktop repose sur des variables non documentées (section 1).
 - `notify.ps1` démarre PowerShell (~0,3 à 0,5 s) : la notification d'une session Desktop arrive
   un peu plus tard que celle du CLI. Sans conséquence pour Claude (hook en arrière-plan).
-- Le retour à la fenêtre ramène la fenêtre du programme, pas l'onglet ni la session précise.
+- Retour à l'onglet précis : Windows Terminal seulement, sessions CLI WSL lancées après
+  l'installation. Terminal de VS Code, CLI Windows et Claude Desktop : la fenêtre seulement.
+- `CLAUDE_CODE_DISABLE_TERMINAL_TITLE` n'est pas documentée : si une version de Claude Code
+  l'abandonne, Claude réécrira son titre, la marque disparaîtra de l'onglet et l'app retombera
+  sur la fenêtre (« onglet introuvable » au journal).

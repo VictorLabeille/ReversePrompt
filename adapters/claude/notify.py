@@ -10,6 +10,8 @@
 #
 #   notify.py            traduit et envoie (usage normal, depuis un hook)
 #   notify.py --print    traduit et écrit l'événement sur stdout, sans rien envoyer (tests)
+#   notify.py --title    écrit sur stdout le titre d'onglet de la session (hook synchrone de
+#                        SessionStart et UserPromptSubmit), sans rien envoyer
 
 import json
 import os
@@ -27,6 +29,11 @@ NEEDS_INPUT_NOTIFICATIONS = {
     "agent_needs_input",
 }
 DESKTOP_ENTRYPOINTS = {"claude-desktop", "claude-desktop-3p"}
+# Posée par l'installeur dans les réglages : Claude n'écrit plus le titre du terminal, c'est ce
+# script qui le fait. Sans elle, Claude écraserait le titre à chaque changement d'état.
+TITLE_OFF_VAR = "CLAUDE_CODE_DISABLE_TERMINAL_TITLE"
+TITLE_EVENTS = {"SessionStart", "UserPromptSubmit"}
+MARKER_LEN = 6
 
 
 def claude_stdin_is_tty(env):
@@ -55,6 +62,35 @@ def surface(env):
     if entrypoint and not claude_stdin_is_tty(env):
         return "desktop"
     return None
+
+
+# Terminal où l'onglet porte le titre de ce script : Windows Terminal, titre de Claude coupé.
+# Le terminal de VS Code a un titre d'onglet que la fenêtre ne montre pas : sans objet.
+def owns_title(env):
+    return (
+        env.get(TITLE_OFF_VAR) == "1"
+        and surface(env) == "terminal"
+        and env.get("TERM_PROGRAM") != "vscode"
+    )
+
+
+# Marque de la session dans le titre de l'onglet : le début de son identifiant. C'est le
+# fragment que l'app cherche dans les titres (focus.title) ; le nom du dossier n'est là que
+# pour l'œil, car il peut changer en cours de session.
+def tab_marker(hook):
+    sid = "".join(c for c in str(hook.get("session_id") or "") if c.isalnum()).lower()
+    return sid[:MARKER_LEN] or None
+
+
+def tab_title(hook, env):
+    if not isinstance(hook, dict) or hook.get("hook_event_name") not in TITLE_EVENTS:
+        return None
+    marker = tab_marker(hook)
+    if not owns_title(env) or marker is None:
+        return None
+    folder = os.path.basename(str(hook.get("cwd") or "").rstrip("/")) or "claude"
+    folder = "".join(c for c in folder if c.isprintable())[:40]
+    return f"{folder} · {marker}"
 
 
 def kind_of(hook):
@@ -90,6 +126,9 @@ def translate(hook, env):
         # Terminal intégré de VS Code (session WSL distante comprise), sinon Windows Terminal.
         process = "Code.exe" if env.get("TERM_PROGRAM") == "vscode" else "WindowsTerminal.exe"
         event["focus"] = {"process": process}
+        marker = tab_marker(hook) if owns_title(env) else None
+        if marker:
+            event["focus"]["title"] = marker
     return event
 
 
@@ -122,6 +161,13 @@ def send(event):
 def main():
     try:
         hook = json.loads(sys.stdin.buffer.read(MAX_INPUT) or b"null")
+        if "--title" in sys.argv[1:]:
+            # OSC 2 : titre de la fenêtre, donc de l'onglet dans Windows Terminal. Claude Code
+            # l'écrit lui-même (un hook n'a pas de terminal) ; voir docs/adapters/claude.md.
+            title = tab_title(hook, os.environ)
+            if title:
+                print(json.dumps({"terminalSequence": f"\x1b]2;{title}\x07"}))
+            return 0
         event = translate(hook, os.environ)
         if "--print" in sys.argv[1:]:
             print(json.dumps(event))

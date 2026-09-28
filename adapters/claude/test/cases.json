@@ -424,5 +424,88 @@
   },
   "expect": null,
   "only": "linux"
+ },
+ {
+  "name": "Titre d'onglet géré : marque de la session dans focus.title",
+  "env": {
+   "CLAUDE_CODE_ENTRYPOINT": "cli",
+   "CLAUDE_CODE_DISABLE_TERMINAL_TITLE": "1"
+  },
+  "hook": {
+   "hook_event_name": "Stop",
+   "session_id": "5F0C2D1E-aaaa"
+  },
+  "expect": {
+   "v": 1,
+   "kind": "done",
+   "session": "5F0C2D1E-aaaa",
+   "source": "claude-code",
+   "focus": {
+    "process": "WindowsTerminal.exe",
+    "title": "5f0c2d"
+   }
+  }
+ },
+ {
+  "name": "Titre d'onglet géré : aussi sur le dismiss",
+  "env": {
+   "CLAUDE_CODE_ENTRYPOINT": "cli",
+   "CLAUDE_CODE_DISABLE_TERMINAL_TITLE": "1"
+  },
+  "hook": {
+   "hook_event_name": "UserPromptSubmit",
+   "session_id": "5F0C2D1E-aaaa"
+  },
+  "expect": {
+   "v": 1,
+   "kind": "dismiss",
+   "session": "5F0C2D1E-aaaa",
+   "source": "claude-code",
+   "focus": {
+    "process": "WindowsTerminal.exe",
+    "title": "5f0c2d"
+   }
+  }
+ },
+ {
+  "name": "Titre de Claude actif : pas de focus.title",
+  "env": {
+   "CLAUDE_CODE_ENTRYPOINT": "cli",
+   "CLAUDE_CODE_DISABLE_TERMINAL_TITLE": "0"
+  },
+  "hook": {
+   "hook_event_name": "Stop",
+   "session_id": "5F0C2D1E-aaaa"
+  },
+  "expect": {
+   "v": 1,
+   "kind": "done",
+   "session": "5F0C2D1E-aaaa",
+   "source": "claude-code",
+   "focus": {
+    "process": "WindowsTerminal.exe"
+   }
+  }
+ },
+ {
+  "name": "Terminal de VS Code : pas de focus.title",
+  "env": {
+   "CLAUDE_CODE_ENTRYPOINT": "cli",
+   "CLAUDE_CODE_DISABLE_TERMINAL_TITLE": "1",
+   "TERM_PROGRAM": "vscode"
+  },
+  "hook": {
+   "hook_event_name": "Stop",
+   "session_id": "5F0C2D1E-aaaa"
+  },
+  "expect": {
+   "v": 1,
+   "kind": "done",
+   "session": "5F0C2D1E-aaaa",
+   "source": "claude-code",
+   "focus": {
+    "process": "Code.exe"
+   }
+  }
  }
 ]

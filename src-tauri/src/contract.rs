@@ -27,6 +27,16 @@ pub struct Focus {
     pub title: Option<String>,
 }
 
+impl Focus {
+    // Une fenêtre (programme, titre) est-elle la cible ? Casse ignorée ; sans fragment de titre,
+    // toute fenêtre du programme l'est. Dans Windows Terminal, le titre de la fenêtre est celui de
+    // l'onglet actif : c'est ce qui distingue deux onglets.
+    pub fn matches(&self, process: &str, title: &str) -> bool {
+        process.eq_ignore_ascii_case(&self.process)
+            && self.title.as_deref().is_none_or(|t| title.to_lowercase().contains(&t.to_lowercase()))
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Event {
     pub source: String,
@@ -234,5 +244,15 @@ mod tests {
         assert!(err("{").contains("JSON"));
         let big = format!(r#"{{"v":1,"pad":"{}"}}"#, "x".repeat(MAX_BODY_BYTES));
         assert!(err(&big).contains("octets"));
+    }
+
+    #[test]
+    fn focus_matches_process_then_title_fragment() {
+        let tab = Focus { process: "WindowsTerminal.exe".into(), title: Some("5F0C2D".into()) };
+        assert!(tab.matches("windowsterminal.exe", "ReversePrompt · 5f0c2d"));
+        assert!(!tab.matches("WindowsTerminal.exe", "ReversePrompt · 9a8b7c"));
+        assert!(!tab.matches("Code.exe", "ReversePrompt · 5f0c2d"));
+        let window = Focus { process: "claude.exe".into(), title: None };
+        assert!(window.matches("Claude.exe", "n'importe quel titre"));
     }
 }

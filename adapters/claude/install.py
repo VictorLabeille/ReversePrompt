@@ -37,6 +37,13 @@ EVENTS = {
     "SessionEnd": None,
 }
 
+# Côté WSL seulement : titre d'onglet unique posé par le hook (notify.py --title), pour que
+# l'app retrouve l'onglet de la session dans Windows Terminal. Synchrone : Claude n'émet la
+# séquence que s'il lit la sortie du hook. La variable coupe le titre que Claude écrit
+# lui-même, qui écraserait le nôtre (docs/adapters/claude.md, « Titre de l'onglet »).
+TITLE_EVENTS = ("SessionStart", "UserPromptSubmit")
+TITLE_ENV = ("CLAUDE_CODE_DISABLE_TERMINAL_TITLE", "1")
+
 
 def handler(command, event, target):
     h = {"type": "command", "command": command}
@@ -52,9 +59,16 @@ def is_ours(h):
     return isinstance(h, dict) and MARKER in str(h.get("command", ""))
 
 
-# Retire nos gestionnaires. Un groupe, un événement ou la clé `hooks` que ce retrait laisse
-# vides disparaissent ; ce qui était déjà vide avant reste tel quel.
-def strip_ours(settings):
+# Retire nos gestionnaires, et côté WSL notre variable. Un groupe, un événement, ou les clés
+# `hooks` et `env` que ce retrait laisse vides disparaissent ; ce qui était déjà vide avant
+# reste tel quel. Limite : une variable identique posée à la main serait retirée aussi.
+def strip_ours(settings, target="wsl"):
+    env = settings.get("env")
+    name, value = TITLE_ENV
+    if target == "wsl" and isinstance(env, dict) and env.get(name) == value:
+        del env[name]
+        if not env:
+            del settings["env"]
     hooks = settings.get("hooks")
     if not isinstance(hooks, dict):
         return settings
@@ -82,13 +96,18 @@ def strip_ours(settings):
 
 
 def merge(settings, command, target):
-    settings = strip_ours(json.loads(json.dumps(settings)))
+    settings = strip_ours(json.loads(json.dumps(settings)), target)
     hooks = settings.setdefault("hooks", {})
     for event, matcher in EVENTS.items():
         group = {"hooks": [handler(command, event, target)]}
         if matcher:
             group = {"matcher": matcher, **group}
         hooks.setdefault(event, []).append(group)
+    if target == "wsl":
+        for event in TITLE_EVENTS:
+            hooks.setdefault(event, []).append({"hooks": [{"type": "command", "command": command + " --title"}]})
+        name, value = TITLE_ENV
+        settings.setdefault("env", {})[name] = value
     return settings
 
 
@@ -215,7 +234,7 @@ def main():
         settings_path = os.path.join(claude_dir, "settings.json")
         settings = load_settings(settings_path)
         if args.uninstall:
-            write_settings(settings_path, strip_ours(settings), args.dry_run)
+            write_settings(settings_path, strip_ours(settings, name), args.dry_run)
             remove_files(files_dir, args.dry_run)
         else:
             install_files(files_dir, script, endpoint, args.dry_run)

@@ -75,5 +75,10 @@ d'autres). Ce fichier oriente ; la documentation vit dans `README.md` et `docs/`
   dépôt ne compile plus.
 - `~/.claude/settings.json` (WSL) contient déjà des hooks : toute installation de hook **fusionne**,
   n'écrase jamais — passer par `adapters/claude/install.py`, testé sur copies.
+- `npm run win:install` ferme l'app installée et **ne la relance pas** : la relancer par
+  `powershell.exe Start-Process "$env:LOCALAPPDATA\ReversePrompt\reverse-prompt.exe"`.
+- L'installeur coupe le titre de terminal de Claude (`CLAUDE_CODE_DISABLE_TERMINAL_TITLE`) et
+  le remplace par celui du hook : ne pas s'étonner des titres d'onglet `<dossier> · <marque>`
+  (`docs/adapters/claude.md`, « Titre de l'onglet »).
 - Les hooks ReversePrompt sont **installés sur le poste** : chaque session Claude Code de Victor
   (y compris celle d'un agent qui travaille ici) envoie ses événements à l'app installée.

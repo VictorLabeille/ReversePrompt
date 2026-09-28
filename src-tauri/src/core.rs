@@ -62,9 +62,9 @@ impl Core {
         self.current = None;
     }
 
-    // Programme dont le passage au premier plan doit faire partir l'île.
-    pub fn focus_process(&self) -> Option<&str> {
-        self.current.as_ref()?.focus.as_ref().map(|f| f.process.as_str())
+    // Fenêtre (ou onglet) dont le passage au premier plan doit faire partir l'île.
+    pub fn target(&self) -> Option<&Focus> {
+        self.current.as_ref()?.focus.as_ref()
     }
 
     pub fn pause(&mut self, until: Option<Instant>) {
@@ -100,9 +100,9 @@ mod tests {
         let t = Instant::now();
         assert!(is_show(&c.handle(ev("a", Kind::Done, None), t)));
         assert!(is_show(&c.handle(ev("b", Kind::NeedsInput, None), t)));
-        assert_eq!(c.focus_process(), Some("b.exe"));
+        assert_eq!(c.target().unwrap().process, "b.exe");
         assert_eq!(c.take_focus().unwrap().process, "b.exe");
-        assert_eq!(c.focus_process(), None);
+        assert_eq!(c.target(), None);
     }
 
     #[test]
@@ -124,7 +124,7 @@ mod tests {
         let t = Instant::now();
         c.handle(ev("a", Kind::Done, None), t);
         assert_eq!(c.handle(ev("b", Kind::Dismiss, None), t), Action::Ignore);
-        assert_eq!(c.focus_process(), Some("a.exe"));
+        assert_eq!(c.target().unwrap().process, "a.exe");
         assert_eq!(c.handle(ev("a", Kind::Dismiss, None), t), Action::Dismiss);
         assert_eq!(c.handle(ev("a", Kind::Dismiss, None), t), Action::Ignore);
     }

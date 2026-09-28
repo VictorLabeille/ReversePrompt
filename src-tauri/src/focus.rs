@@ -6,19 +6,25 @@ use std::sync::OnceLock;
 use std::thread;
 
 use windows::core::PWSTR;
-use windows::Win32::Foundation::{CloseHandle, HWND, LPARAM, TRUE};
+use windows::Win32::Foundation::{CloseHandle, HWND, LPARAM, LRESULT, POINT, TRUE, WPARAM};
+use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED};
 use windows::Win32::System::Threading::{
     AttachThreadInput, GetCurrentThreadId, OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32,
     PROCESS_QUERY_LIMITED_INFORMATION,
 };
-use windows::Win32::UI::Accessibility::{SetWinEventHook, HWINEVENTHOOK};
+use windows::Win32::UI::Accessibility::{
+    CUIAutomation, IUIAutomation, IUIAutomationSelectionItemPattern, SetWinEventHook, TreeScope_Descendants, HWINEVENTHOOK,
+    UIA_SelectionItemPatternId, UIA_TabItemControlTypeId,
+};
 use windows::Win32::System::SystemInformation::GetTickCount;
 use windows::Win32::UI::Input::KeyboardAndMouse::{GetLastInputInfo, SendInput, INPUT, INPUT_MOUSE, LASTINPUTINFO};
 use windows::Win32::UI::WindowsAndMessaging::{
-    BringWindowToTop, DispatchMessageW, EnumWindows, GetForegroundWindow, GetMessageW, GetWindow,
+    BringWindowToTop, CallNextHookEx, DispatchMessageW, EnumWindows, GetAncestor, GetForegroundWindow, GetMessageW, GetWindow,
     GetWindowLongPtrW, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId, IsIconic, IsWindowVisible,
-    SetForegroundWindow, ShowWindow, TranslateMessage, EVENT_SYSTEM_DESKTOPSWITCH, EVENT_SYSTEM_FOREGROUND, GWL_EXSTYLE, GW_OWNER, MSG,
-    SW_RESTORE, WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS, WS_EX_TOOLWINDOW,
+    SetForegroundWindow, SetWindowsHookExW, ShowWindow, TranslateMessage, WindowFromPoint, EVENT_OBJECT_NAMECHANGE,
+    EVENT_SYSTEM_DESKTOPSWITCH, EVENT_SYSTEM_FOREGROUND, GA_ROOT, GWL_EXSTYLE, GW_OWNER, HC_ACTION, MSG, MSLLHOOKSTRUCT,
+    OBJID_WINDOW, SW_RESTORE, WH_MOUSE_LL, WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS, WM_LBUTTONDOWN, WM_MBUTTONDOWN,
+    WM_RBUTTONDOWN, WS_EX_TOOLWINDOW,
 };
 use windows::core::BOOL;
 
@@ -41,7 +47,7 @@ pub fn process_name(hwnd: HWND) -> Option<String> {
     }
 }
 
-fn window_title(hwnd: HWND) -> String {
+pub fn window_title(hwnd: HWND) -> String {
     unsafe {
         let len = GetWindowTextLengthW(hwnd);
         if len <= 0 {
@@ -78,21 +84,59 @@ fn top_level_windows() -> Vec<HWND> {
     list
 }
 
-// La fenêtre la plus récemment active du programme `process` ; parmi elles, celle dont le
-// titre contient `title` si possible.
-pub fn find_window(process: &str, title: Option<&str>) -> Option<HWND> {
+fn contains_ci(haystack: &str, needle: &str) -> bool {
+    haystack.to_lowercase().contains(&needle.to_lowercase())
+}
+
+// Ramène la cible d'un clic : la fenêtre du programme `process` dont le titre contient `title`,
+// sinon celle dont un **onglet** le contient (onglet sélectionné d'abord), sinon la plus
+// récemment active du programme. Rend la méthode employée, pour le journal.
+pub fn activate(process: &str, title: Option<&str>) -> String {
     let candidates: Vec<HWND> = top_level_windows()
         .into_iter()
         .filter(|&h| is_app_window(h))
         .filter(|&h| process_name(h).is_some_and(|p| p.eq_ignore_ascii_case(process)))
         .collect();
     if let Some(t) = title {
-        let t = t.to_lowercase();
-        if let Some(&h) = candidates.iter().find(|&&h| window_title(h).to_lowercase().contains(&t)) {
-            return Some(h);
+        if let Some(&h) = candidates.iter().find(|&&h| contains_ci(&window_title(h), t)) {
+            return format!("onglet déjà actif, {}", bring_to_front(h));
+        }
+        if let Some(&h) = candidates.iter().find(|&&h| select_tab(h, t)) {
+            return format!("onglet sélectionné, {}", bring_to_front(h));
         }
     }
-    candidates.first().copied()
+    match candidates.first() {
+        Some(&h) if title.is_some() => format!("onglet introuvable, fenêtre : {}", bring_to_front(h)),
+        Some(&h) => bring_to_front(h).to_owned(),
+        None => "aucune fenêtre trouvée".to_owned(),
+    }
+}
+
+// Sélectionne, dans la fenêtre `hwnd`, l'onglet dont le nom contient `fragment`, par UI
+// Automation (Windows Terminal : élément `TabItem`, motif SelectionItem ; docs/windows-focus.md).
+// On parcourt tous les descendants et on filtre sur le type : pas de VARIANT à construire.
+fn select_tab(hwnd: HWND, fragment: &str) -> bool {
+    unsafe {
+        let com = CoInitializeEx(None, COINIT_MULTITHREADED).is_ok();
+        let found = (|| -> windows::core::Result<bool> {
+            let uia: IUIAutomation = CoCreateInstance(&CUIAutomation, None, CLSCTX_INPROC_SERVER)?;
+            let all = uia.ElementFromHandle(hwnd)?.FindAll(TreeScope_Descendants, &uia.CreateTrueCondition()?)?;
+            for i in 0..all.Length()? {
+                let el = all.GetElement(i)?;
+                if el.CurrentControlType()? != UIA_TabItemControlTypeId || !contains_ci(&el.CurrentName()?.to_string(), fragment) {
+                    continue;
+                }
+                el.GetCurrentPatternAs::<IUIAutomationSelectionItemPattern>(UIA_SelectionItemPatternId)?.Select()?;
+                return Ok(true);
+            }
+            Ok(false)
+        })()
+        .unwrap_or(false);
+        if com {
+            CoUninitialize();
+        }
+        found
+    }
 }
 
 // Ramène la fenêtre au premier plan, en la restaurant si elle est réduite.
@@ -101,7 +145,7 @@ pub fn find_window(process: &str, title: Option<&str>) -> Option<HWND> {
 // utilisateur. Or le clic sur l'île arrive dans la fenêtre de WebView2, qui appartient à un
 // autre processus (msedgewebview2.exe). D'où trois tentatives, de la plus propre à la plus
 // forcée ; chacune est vérifiée par `GetForegroundWindow`.
-pub fn bring_to_front(hwnd: HWND) -> &'static str {
+fn bring_to_front(hwnd: HWND) -> &'static str {
     unsafe {
         if IsIconic(hwnd).as_bool() {
             let _ = ShowWindow(hwnd, SW_RESTORE);
@@ -169,6 +213,8 @@ unsafe extern "system" fn on_desktop_switch(_: HWINEVENTHOOK, _: u32, _: HWND, _
 
 type ForegroundCallback = Box<dyn Fn(HWND) + Send + Sync>;
 static ON_FOREGROUND: OnceLock<ForegroundCallback> = OnceLock::new();
+type ClickCallback = Box<dyn Fn(HWND) + Send + Sync>;
+static ON_CLICK: OnceLock<ClickCallback> = OnceLock::new();
 
 unsafe extern "system" fn on_foreground(_: HWINEVENTHOOK, _: u32, hwnd: HWND, _: i32, _: i32, _: u32, _: u32) {
     if let Some(cb) = ON_FOREGROUND.get() {
@@ -176,10 +222,41 @@ unsafe extern "system" fn on_foreground(_: HWINEVENTHOOK, _: u32, hwnd: HWND, _:
     }
 }
 
-// Appelle `callback` à chaque changement de fenêtre au premier plan (hors fenêtres de l'app).
+// Titre changé : ne compte que celui de la fenêtre au premier plan elle-même. Dans Windows
+// Terminal, changer d'onglet change le titre de la fenêtre sans changer de premier plan.
+unsafe extern "system" fn on_name_change(_: HWINEVENTHOOK, _: u32, hwnd: HWND, id_object: i32, id_child: i32, _: u32, _: u32) {
+    if id_object != OBJID_WINDOW.0 || id_child != 0 || hwnd.is_invalid() || hwnd != GetForegroundWindow() {
+        return;
+    }
+    if let Some(cb) = ON_FOREGROUND.get() {
+        cb(hwnd);
+    }
+}
+
+// Clic dans la fenêtre déjà au premier plan : Windows n'émet aucun changement de premier plan,
+// c'est le seul signal que l'utilisateur y est revenu. Un clic ailleurs change le premier plan
+// et passe par `on_foreground`. Le crochet doit rendre la main vite : il retarde toute la souris.
+unsafe extern "system" fn on_mouse(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    if code == HC_ACTION as i32 && matches!(wparam.0 as u32, WM_LBUTTONDOWN | WM_RBUTTONDOWN | WM_MBUTTONDOWN) {
+        let info = &*(lparam.0 as *const MSLLHOOKSTRUCT);
+        let root = GetAncestor(WindowFromPoint(POINT { x: info.pt.x, y: info.pt.y }), GA_ROOT);
+        if !root.is_invalid() && root == GetForegroundWindow() {
+            if let Some(cb) = ON_CLICK.get() {
+                cb(root);
+            }
+        }
+    }
+    CallNextHookEx(None, code, wparam, lparam)
+}
+
+// Appelle `on_change` à chaque changement de fenêtre au premier plan ou de son titre (hors
+// fenêtres de l'app), et `on_click` à chaque clic dans la fenêtre déjà au premier plan.
 // Un seul abonnement par processus ; le fil a sa propre boucle de messages.
-pub fn watch_foreground(callback: impl Fn(HWND) + Send + Sync + 'static) {
-    if ON_FOREGROUND.set(Box::new(callback)).is_err() {
+pub fn watch_foreground(
+    on_change: impl Fn(HWND) + Send + Sync + 'static,
+    on_click: impl Fn(HWND) + Send + Sync + 'static,
+) {
+    if ON_FOREGROUND.set(Box::new(on_change)).is_err() || ON_CLICK.set(Box::new(on_click)).is_err() {
         return;
     }
     let _ = thread::Builder::new().name("foreground-watch".into()).spawn(|| unsafe {
@@ -192,6 +269,16 @@ pub fn watch_foreground(callback: impl Fn(HWND) + Send + Sync + 'static) {
             0,
             WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS,
         );
+        let _name_hook = SetWinEventHook(
+            EVENT_OBJECT_NAMECHANGE,
+            EVENT_OBJECT_NAMECHANGE,
+            None,
+            Some(on_name_change),
+            0,
+            0,
+            WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS,
+        );
+        let _mouse_hook = SetWindowsHookExW(WH_MOUSE_LL, Some(on_mouse), None, 0);
         let _desktop_hook = SetWinEventHook(
             EVENT_SYSTEM_DESKTOPSWITCH,
             EVENT_SYSTEM_DESKTOPSWITCH,

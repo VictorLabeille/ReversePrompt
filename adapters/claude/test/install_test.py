@@ -53,6 +53,13 @@ with tempfile.TemporaryDirectory() as tmp:
     assert len(ours) == 1 and ours[0]["hooks"][0]["async"] is True
     assert "async" not in first["hooks"]["SessionEnd"][0]["hooks"][0], "SessionEnd WSL doit rester synchrone"
     assert load(os.path.join(win, "settings.json"))["hooks"]["SessionEnd"][0]["hooks"][0]["async"] is True
+    # Titre d'onglet : côté WSL seulement, hooks synchrones et variable qui coupe celui de Claude.
+    title = [h for g in first["hooks"]["SessionStart"] for h in g["hooks"]]
+    assert len(title) == 1 and title[0]["command"].endswith("notify.py --title") and "async" not in title[0]
+    assert sum(h["command"].endswith("--title") for g in first["hooks"]["UserPromptSubmit"] for h in g["hooks"]) == 1
+    assert first["env"] == {"CLAUDE_CODE_DISABLE_TERMINAL_TITLE": "1"}
+    win_settings = load(os.path.join(win, "settings.json"))
+    assert "env" not in win_settings and "SessionStart" not in win_settings["hooks"]
     assert load(os.path.join(wsl, "reverse-prompt", "endpoint.json")) == {"port": 47999, "token": "ab" * 32}
     assert os.path.exists(os.path.join(win, "reverse-prompt", "notify.ps1"))
     backups = [f for f in os.listdir(wsl) if f.endswith(".bak")]

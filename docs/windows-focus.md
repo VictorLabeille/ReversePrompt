@@ -11,11 +11,26 @@ cible `focus` du dernier événement (`docs/event-contract.md`).
    propriétaire, sans `WS_EX_TOOLWINDOW`, avec un titre.
 3. On compare le nom de l'exécutable du processus propriétaire (`QueryFullProcessImageNameW`)
    à `focus.process`, sans tenir compte de la casse.
-4. Si `focus.title` est donné, la première dont le titre le contient gagne ; sinon, la plus
-   récente.
+4. Si `focus.title` est donné : la première fenêtre dont le titre le contient gagne (son
+   onglet est déjà l'onglet actif) ; sinon, la première dont un **onglet** le contient, et cet
+   onglet est sélectionné avant de ramener la fenêtre ; sinon, la plus récente, au journal
+   « onglet introuvable ». Sans `focus.title`, la plus récente.
 
-Windows Terminal : toutes ses fenêtres appartiennent à `WindowsTerminal.exe` ; on ramène la
-fenêtre, pas l'onglet. Claude Desktop : `claude.exe`.
+Windows Terminal : toutes ses fenêtres appartiennent à `WindowsTerminal.exe`, et le titre de
+la fenêtre est celui de l'onglet actif. Claude Desktop : `claude.exe`.
+
+### Onglets (UI Automation)
+
+Relevé du 2026-09-28, Windows Terminal 1.24 : sous la fenêtre `CASCADIA_HOSTING_WINDOW_CLASS`,
+chaque onglet est un élément `TabItem` dont le nom est le titre de l'onglet, avec
+`SelectionItemPattern` (`IsSelected`, `Select()`). `focus::select_tab` parcourt tous les
+descendants de la fenêtre et filtre sur le type `TabItem` (pas de condition à construire, donc
+pas de `VARIANT`). COM est initialisé sur le fil du clic, le temps de l'appel.
+
+Un titre ne distingue deux sessions que s'il est unique : Claude Code écrit le sien
+(« Claude Code » pour toutes les sessions sans titre), d'où le titre posé par l'adaptateur
+(`docs/adapters/claude.md`, « Titre de l'onglet »). Onglet coupé en volets : le titre est celui
+du volet actif, un seul volet est donc reconnu à la fois.
 
 ## La ramener malgré le verrou de premier plan
 
@@ -45,14 +60,16 @@ cause de WebView2. Non vérifié : vidéo plein écran, autre bureau virtuel (`d
 
 ## Départ de l'île quand l'agent revient au premier plan
 
-Un abonnement `SetWinEventHook(EVENT_SYSTEM_FOREGROUND)` (fil dédié avec sa boucle de messages)
-reçoit chaque changement de premier plan. L'île part seulement si **toutes** ces conditions
-tiennent :
+Un fil dédié (avec sa boucle de messages) s'abonne à `EVENT_SYSTEM_FOREGROUND` (changement de
+premier plan) et à `EVENT_OBJECT_NAMECHANGE` limité au titre de la fenêtre au premier plan
+(`OBJID_WINDOW`) : changer d'onglet dans Windows Terminal change ce titre, pas le premier plan.
+« La cible » est une fenêtre de `focus.process` dont le titre contient `focus.title` s'il est
+donné. L'île part seulement si **toutes** ces conditions tiennent :
 
-1. la nouvelle fenêtre appartient à `focus.process` ;
-2. le premier plan d'avant était **un autre** programme. Le point de départ est relevé à
-   l'apparition de l'île, puis suivi à chaque changement ; les événements de l'app et de
-   WebView2 (`reverse-prompt.exe`, `msedgewebview2.exe`) ne comptent pas ;
+1. la fenêtre au premier plan est la cible ;
+2. la fenêtre d'avant (programme et titre) **n'était pas** la cible. Le point de départ est
+   relevé à l'apparition de l'île, puis suivi à chaque changement ; les événements de l'app et
+   de WebView2 (`reverse-prompt.exe`, `msedgewebview2.exe`) ne comptent pas ;
 3. la souris n'est pas sur la pilule (fenêtre captante) ;
 4. l'utilisateur a touché clavier ou souris dans les 1,5 s (`GetLastInputInfo`) ;
 5. aucun changement de bureau (`EVENT_SYSTEM_DESKTOPSWITCH` : verrouillage, déverrouillage)
@@ -67,3 +84,16 @@ Chacune corrige un départ intempestif observé le 2026-09-26 :
 | 5 | au déverrouillage, le mot de passe tapé compte comme une entrée, et le terminal revient au premier plan : l'île partait au moment où l'utilisateur revenait la voir |
 
 Chaque décision est écrite au journal avec le programme d'avant et d'après.
+
+### Cible déjà au premier plan
+
+- **À l'arrivée d'un événement** dont la cible a un `focus.title` : l'île n'apparaît pas
+  (journal : « déjà sur la cible, ignoré »). Vérifié le 2026-09-28 avec l'onglet actif de
+  Victor.
+- **Pendant que l'île est là** (cible sans titre, ou onglet revenu par un autre chemin) :
+  aucune transition possible, donc rien ne la ferait partir. Un crochet souris bas niveau
+  (`WH_MOUSE_LL`, même fil) voit chaque appui de bouton ; si la fenêtre sous le curseur est
+  la fenêtre au premier plan et qu'elle est la cible, l'île part (journal : « clic dans … »).
+  Un clic dans une autre fenêtre change le premier plan et suit le chemin ci-dessus ; un clic
+  sur la pilule tombe sur la fenêtre de l'île, jamais au premier plan. Le crochet ne fait
+  qu'une lecture d'état tant que l'île est cachée : il retarde toute la souris du poste.
