@@ -40,7 +40,9 @@ d'autres). Ce fichier oriente ; la documentation vit dans `README.md` et `docs/`
 - L'app doit rester indépendante de l'outil : rien de propre à Claude Code en dehors d'un futur
   adaptateur. Chaque adaptateur sera documenté dans `docs/` pour les agents suivants.
 - Dépôt **public** : ni secret, ni jeton, ni donnée d'appareil, **ni logo ou icône d'Anthropic**
-  (décision de Victor) — ceux-là vivent dans `src/icons/brand/`, ignoré par git.
+  (décision de Victor) — ceux-là vivent dans `src/icons/brand/`, ignoré par git. Seule exception,
+  décidée par Victor le 2026-10-03 : `docs/media/demo.gif`, la capture de démonstration, montre
+  l'icône de Claude Code. Les fichiers d'icône eux-mêmes restent hors dépôt.
 - **Source de vérité unique : ce dépôt, dans WSL.** L'app Windows (Tauri) se compile côté Windows
   depuis un **miroir sur disque NTFS** synchronisé par script, jamais en travaillant dans un second
   clone Windows ni en compilant directement sur `\\wsl.localhost`.

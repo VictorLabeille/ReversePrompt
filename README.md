@@ -2,6 +2,8 @@
 
 **A notification for the moment a coding agent needs you, and nothing else.**
 
+![The ink drop leaves the notch and settles into a pill: "C'est prêt !", then "Ton avis, s'il te plaît"](docs/media/demo.gif)
+
 A Windows desktop app that tells you when a coding agent has finished or is waiting for an answer. A
 drop of ink leaves the notch at the top of the screen, falls, and settles into a pill where the
 message is typed out. It never takes focus, and a click brings back
@@ -121,5 +123,5 @@ Documentation is in French; this page is not.
 ## Trademarks
 
 Claude and Claude Code are trademarks of Anthropic. This project is neither affiliated with nor
-endorsed by Anthropic. Icons that reproduce those marks are not in the repository; without them the
-island shows a neutral icon.
+endorsed by Anthropic. The icon files that reproduce those marks are not in the repository, although
+the demo above shows one; without them the island shows a neutral icon.
