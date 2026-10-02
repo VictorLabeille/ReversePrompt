@@ -78,7 +78,8 @@ d'autres). Ce fichier oriente ; la documentation vit dans `README.md` et `docs/`
 - `npm run win:install` ferme l'app installée et **ne la relance pas** : la relancer par
   `powershell.exe Start-Process "$env:LOCALAPPDATA\ReversePrompt\reverse-prompt.exe"`.
 - L'installeur coupe le titre de terminal de Claude (`CLAUDE_CODE_DISABLE_TERMINAL_TITLE`) et
-  le remplace par celui du hook : ne pas s'étonner des titres d'onglet `<dossier> · <marque>`
-  (`docs/adapters/claude.md`, « Titre de l'onglet »).
+  le remplace par celui du hook : ne pas s'étonner des titres d'onglet `<titre> · <marque>`
+  (`docs/adapters/claude.md`, « Titre de l'onglet »). Cette variable coupe aussi le titre de
+  session de Claude : c'est l'adaptateur qui le génère (« Titre de session »).
 - Les hooks ReversePrompt sont **installés sur le poste** : chaque session Claude Code de Victor
   (y compris celle d'un agent qui travaille ici) envoie ses événements à l'app installée.

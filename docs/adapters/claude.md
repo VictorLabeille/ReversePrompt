@@ -133,6 +133,15 @@ Obsidian. Rien n'est implémenté pour le chat en attendant.
   `CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1`, qu'elle vienne de l'environnement ou du bloc `env` des
   réglages, Claude n'écrit plus aucun titre et celui du hook reste. Un hook **synchrone** de
   `SessionStart` ou `UserPromptSubmit` qui renvoie `terminalSequence` pose bien le titre.
+- **Effet de bord, vérifié le 2026-10-02 (Claude Code 2.1.287)** : la variable coupe aussi la
+  **génération du titre de session** par l'IA, pas seulement son écriture dans le terminal. Le
+  même composant porte les deux (`disabled: CLAUDE_CODE_DISABLE_TERMINAL_TITLE` à sa création,
+  relevé dans l'exécutable). Sans titre IA, `claude -r` affiche le premier message de la session.
+  Mesure : trois sessions lancées dans un pseudo-terminal sans la variable → une entrée
+  `ai-title` chacune dans le journal ; trois avec → aucune. Côté poste : plus aucune `ai-title`
+  dans les sessions ouvertes après l'installation du 2026-09-28.
+- Un hook **synchrone** de `SessionStart` ou `UserPromptSubmit` peut poser le titre de session :
+  champ `hookSpecificOutput.sessionTitle` (relevé dans le schéma de l'exécutable, non essayé).
 
 ## 2. L'adaptateur
 
@@ -164,7 +173,9 @@ Fichiers : `adapters/claude/`.
   fenêtre, comme avant.
 - `session` = `session_id` (128 caractères au plus). Aucun `text` : l'île tire le sien dans
   `src/messages.json`. Le contenu des messages (`prompt`, `last_assistant_message`, `message`)
-  n'est jamais lu ni transmis.
+  n'est jamais transmis à l'app. Seule exception de lecture : les trois premiers messages de
+  l'utilisateur, pour le titre de session (section suivante), envoyés au modèle et nulle part
+  ailleurs.
 - Où vit la session (règle de la section 1) :
 
 | `CLAUDE_CODE_ENTRYPOINT` | `source` | `focus.process` |
@@ -178,12 +189,40 @@ Fichiers : `adapters/claude/`.
 
 `notify.py --title`, hook **synchrone** de `SessionStart` et `UserPromptSubmit` côté WSL,
 répond `{"terminalSequence": "ESC ]2;<dossier> · <marque> BEL"}` (exemple :
-`ReversePrompt · c7bc2a`) : Claude Code écrit ce titre dans le terminal. Le nom du dossier
-(`cwd` du hook) n'est là que pour l'œil ; seule la marque sert à l'app. Réémis à chaque message,
+`ReversePrompt · c7bc2a`) : Claude Code écrit ce titre dans le terminal. Devant la marque, le
+titre de la session une fois connu (section suivante), sinon le nom du dossier (`cwd` du hook) :
+ils ne sont là que pour l'œil ; seule la marque sert à l'app. Réémis à chaque message,
 il se rétablit si quelque chose l'a changé entre-temps. L'installeur pose aussi
 `CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1` dans le bloc `env` de `~/.claude/settings.json`, sans
 quoi Claude écraserait ce titre. Conséquence : l'onglet ne montre plus ni le titre de sujet ni
 le symbole d'état de Claude (choix de Victor, 2026-09-28).
+
+### Titre de session
+
+La variable qui protège la marque coupe aussi le titre que Claude génère pour la session
+(section 1) : sans rien d'autre, `claude -r` montrerait le premier message. L'adaptateur le
+génère donc lui-même (choix de Victor, 2026-10-02 ; écartés : rendre son titre à Claude et
+perdre l'onglet précis, `/rename` à la main).
+
+- `notify.py --title` sur `UserPromptSubmit` retient les trois premiers messages (600
+  caractères chacun, commandes `/…` exclues) dans `~/.claude/reverse-prompt/titles/<session>.json`.
+- Au 1er puis au 3e message, il lance détaché `notify.py --name-session <session>` : un
+  `claude -p` court (`--model haiku`, sans outils, sans réglages ni hooks, sans session
+  enregistrée, variable `REVERSE_PROMPT_NAMING=1` contre toute boucle), avec une consigne
+  inspirée de celle de Claude Code (groupe nominal de deux à cinq mots, sans verbe de demande).
+  Réponse en 7 à 20 s, écrite dans `<session>.title`.
+- Au message suivant, le hook rend `hookSpecificOutput.sessionTitle` : Claude l'enregistre comme
+  un `/rename` (`custom-title` dans le journal), donc visible dans `claude -r`, et l'onglet passe
+  à `<titre> · <marque>`.
+- **Jamais par-dessus un titre qui ne vient pas de lui** : un `/rename`, ou un titre de Claude
+  d'avant l'installation, est lu dans le journal (`transcript_path`, dernière entrée
+  `custom-title` ou `ai-title`) et gardé, y compris dans l'onglet.
+- Seulement pour les sessions CLI avec la variable posée (terminal de VS Code compris) ;
+  fichiers d'état effacés après 30 jours.
+
+Vérifié le 2026-10-02 (session réelle en pseudo-terminal, deux messages) : titre « TCP et UDP »
+généré, écrit en `custom-title`, onglet `TCP et UDP · 656704`. `sessionTitle` relevé dans le
+schéma de l'exécutable 2.1.287, non documenté dans `hooks.md` au moment du relevé.
 
 Côté Windows, pas de titre : PowerShell démarre trop lentement (~0,3 à 0,5 s) pour un hook
 synchrone à chaque message. `notify.ps1` applique la même règle pour `focus.title`, mais la
@@ -230,6 +269,9 @@ sans effet sur Claude ; `CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1` est retirée mêm
   un peu plus tard que celle du CLI. Sans conséquence pour Claude (hook en arrière-plan).
 - Retour à l'onglet précis : Windows Terminal seulement, sessions CLI WSL lancées après
   l'installation. Terminal de VS Code, CLI Windows et Claude Desktop : la fenêtre seulement.
+- Titre de session généré par l'adaptateur (section 2) : absent tant que la session n'a reçu
+  qu'un message (posé au message suivant seulement) ; un appel `claude -p` léger par génération,
+  sur le compte de Victor ; non fait pour les sessions Desktop dans WSL ni le CLI Windows.
 - `CLAUDE_CODE_DISABLE_TERMINAL_TITLE` n'est pas documentée : si une version de Claude Code
   l'abandonne, Claude réécrira son titre, la marque disparaîtra de l'onglet et l'app retombera
   sur la fenêtre (« onglet introuvable » au journal).

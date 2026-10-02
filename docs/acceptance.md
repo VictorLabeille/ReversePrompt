@@ -42,6 +42,10 @@ dit ce que l'app a reçu et fait.
     - Onglet B au premier plan, île de A visible, clic **dans** l'onglet B : l'île reste.
 13. **Clic dans le terminal déjà au premier plan** (session ouverte avant l'installation, donc
     sans titre à nous) : l'île est là, clic dans le terminal → elle part.
+14. **Titres de session** (ajout du 2026-10-02 ; sessions ouvertes après ce jour) : après le
+    2e message, l'onglet devient `<titre> · <marque>` ; quitter, `claude -r` → la session porte
+    ce titre et non un de tes messages. Le titre dit-il clairement de quoi parle la session ?
+    Un `/rename` reste en place aux messages suivants.
 
 ## Déjà vérifié automatiquement ou par l'agent (2026-09-26)
 

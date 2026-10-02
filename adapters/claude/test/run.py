@@ -6,10 +6,12 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ADAPTER = os.path.dirname(HERE)
 cases = json.load(open(os.path.join(HERE, "cases.json"), encoding="utf-8"))
+STATE_DIR = tempfile.mkdtemp(prefix="reverse-prompt-test-")
 
 # Variables lues par les traductions : retirées de l'environnement réel avant chaque cas.
 READ_VARS = (
@@ -24,6 +26,8 @@ READ_VARS = (
 def env_for(case):
     env = {k: v for k, v in os.environ.items() if k not in READ_VARS}
     env.update(case["env"])
+    # Le titre de session garde un état sur disque : jamais dans le dépôt pendant les tests.
+    env["REVERSE_PROMPT_STATE_DIR"] = STATE_DIR
     return env
 
 

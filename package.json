@@ -15,7 +15,7 @@
     "win:test": "node scripts/windows.mjs test",
     "claude:install": "python3 adapters/claude/install.py",
     "claude:uninstall": "python3 adapters/claude/install.py --uninstall",
-    "test:adapters": "python3 adapters/claude/test/run.py && python3 adapters/claude/test/install_test.py && python3 adapters/claude/test/hook_test.py"
+    "test:adapters": "python3 adapters/claude/test/run.py && python3 adapters/claude/test/install_test.py && python3 adapters/claude/test/hook_test.py && python3 adapters/claude/test/naming_test.py"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.5",
