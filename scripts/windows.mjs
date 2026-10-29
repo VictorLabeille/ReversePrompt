@@ -12,7 +12,8 @@
 //   node scripts/windows.mjs test      sync + `cargo test`
 //   node scripts/windows.mjs run <cmd> sync + une commande quelconque dans le miroir
 //
-// Le miroir vit dans %LOCALAPPDATA%\ReversePrompt-build. Il ne s'édite jamais à la main :
+// Le miroir vit dans %REVERSEPROMPT_MIRROR% (variable utilisateur Windows), par défaut
+// %LOCALAPPDATA%\ReversePrompt-build. Il ne s'édite jamais à la main :
 // tout changement y est écrasé à la synchro suivante.
 
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -34,7 +35,18 @@ function toWsl(winPath) {
   return execFileSync('wslpath', ['-u', winPath], { encoding: 'utf8' }).trim();
 }
 
-const MIRROR_WIN = `${windowsEnv('LOCALAPPDATA')}\\ReversePrompt-build`;
+// Variable d'environnement utilisateur Windows, lue dans le registre : WSL ne transmet que
+// l'environnement capturé à son démarrage, une variable créée ensuite y serait invisible.
+function windowsUserVar(name) {
+  try {
+    const out = execFileSync('reg.exe', ['query', 'HKCU\\Environment', '/v', name], { cwd: '/mnt/c', encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    return out.match(/REG_(?:EXPAND_)?SZ\s+(.+)/)?.[1].trim();
+  } catch {
+    return undefined;
+  }
+}
+
+const MIRROR_WIN = windowsUserVar('REVERSEPROMPT_MIRROR') ?? `${windowsEnv('LOCALAPPDATA')}\\ReversePrompt-build`;
 const MIRROR = toWsl(MIRROR_WIN);
 
 // Copie les fichiers nouveaux ou modifiés (taille ou date), supprime ceux qui ont disparu.

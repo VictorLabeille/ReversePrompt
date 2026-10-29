@@ -53,7 +53,8 @@ d'autres). Ce fichier oriente ; la documentation vit dans `README.md` et `docs/`
 
 ## Pièges d'outillage
 - Pas de `cargo` dans WSL : la partie Tauri (Rust) se compile côté Windows, **toujours via
-  `npm run win:*`** (miroir `%LOCALAPPDATA%\ReversePrompt-build`, jamais édité à la main).
+  `npm run win:*`** (miroir `%REVERSEPROMPT_MIRROR%`, par défaut `%LOCALAPPDATA%\ReversePrompt-build`,
+  jamais édité à la main).
 - `npm run win:dev` n'a pas de `beforeDevCommand` : lancer d'abord `npm run dev` dans WSL ;
   Windows atteint le Vite de WSL sur `127.0.0.1:5173` (redirection localhost de WSL).
 - Commande passée à `cmd.exe` depuis WSL : **pas de guillemets** dedans, l'interop les échappe
